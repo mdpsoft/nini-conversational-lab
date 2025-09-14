@@ -11,7 +11,7 @@ import { Eye, EyeOff, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { useSettingsStore } from "../../store/settings";
 import { XmlEditor } from "../../components/XmlEditor";
 import { DEFAULT_KNOBS } from "../../types/core";
-import { createMinimalXml } from "../../core/nini/xml";
+import { createMinimalXml, validateXmlSyntax, extractKnobsFromXml } from "../../core/nini/xml";
 import NiniAdapter from "../../core/nini/NiniAdapter";
 import { useToast } from "@/hooks/use-toast";
 
@@ -98,6 +98,56 @@ export default function SettingsPage() {
       title: "Defaults restored",
       description: "XML and knobs have been reset to defaults",
     });
+  };
+
+  const handleValidateXml = () => {
+    const validation = validateXmlSyntax(xmlSystemSpec);
+    
+    if (validation.valid) {
+      // Auto-load knobs from XML when validation succeeds
+      const extractedKnobs = extractKnobsFromXml(xmlSystemSpec);
+      const cleanKnobs = Object.fromEntries(
+        Object.entries(extractedKnobs).filter(([_, value]) => value !== undefined)
+      );
+      
+      if (Object.keys(cleanKnobs).length > 0) {
+        setKnobsBase(cleanKnobs);
+      }
+      
+      toast({
+        title: "XML validated successfully",
+        description: Object.keys(cleanKnobs).length > 0 
+          ? `Valid XML. Loaded ${Object.keys(cleanKnobs).length} knobs from XML.`
+          : "Valid XML structure.",
+      });
+    } else {
+      toast({
+        title: "XML validation failed",
+        description: validation.error,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleLoadKnobsFromXml = () => {
+    const extractedKnobs = extractKnobsFromXml(xmlSystemSpec);
+    const cleanKnobs = Object.fromEntries(
+      Object.entries(extractedKnobs).filter(([_, value]) => value !== undefined)
+    );
+    
+    if (Object.keys(cleanKnobs).length > 0) {
+      setKnobsBase(cleanKnobs);
+      toast({
+        title: "Knobs loaded",
+        description: `Loaded ${Object.keys(cleanKnobs).length} knobs from XML. Sliders have been updated.`,
+      });
+    } else {
+      toast({
+        title: "No knobs found",
+        description: "No <Knobs> element found in the XML or no valid knob values detected.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -222,12 +272,28 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle>System Specification</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <XmlEditor
                 value={xmlSystemSpec}
                 onChange={setXmlSystemSpec}
                 placeholder="Enter your XML system specification..."
               />
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={handleValidateXml}
+                  className="flex-1"
+                >
+                  Validate XML
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={handleLoadKnobsFromXml}
+                  className="flex-1"
+                >
+                  Load knobs from XML
+                </Button>
+              </div>
             </CardContent>
           </Card>
 

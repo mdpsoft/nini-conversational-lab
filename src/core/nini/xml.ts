@@ -127,6 +127,64 @@ export function extractEmojiPolicyFromXml(xml: string): EmojiPolicy {
   }
 }
 
+// Extract knobs from XML <Knobs> element
+export function extractKnobsFromXml(xml: string): Partial<Knobs> {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xml, 'application/xml');
+    
+    const knobsElement = doc.querySelector('Knobs');
+    if (!knobsElement) {
+      return {};
+    }
+    
+    const knobs: Partial<Knobs> = {};
+    
+    // Extract numeric values [0..1]
+    const numericKnobs = [
+      'empathy', 'mirroring_intensity', 'humor', 'probing_rate',
+      'uncertainty_threshold', 'clarification_threshold', 'bias_confirmation_soft',
+      'directiveness', 'gentleness', 'colloquiality', 'emoji_bias'
+    ];
+    
+    numericKnobs.forEach(knob => {
+      const attr = knobsElement.getAttribute(knob);
+      if (attr !== null) {
+        const value = parseFloat(attr);
+        if (!isNaN(value)) {
+          (knobs as any)[knob] = Math.max(0, Math.min(1, value));
+        }
+      }
+    });
+    
+    // Extract integer values
+    const integerKnobs = [
+      'ask_rate_min_turns', 'ask_rate_max_turns', 'max_chars_per_message'
+    ];
+    
+    integerKnobs.forEach(knob => {
+      const attr = knobsElement.getAttribute(knob);
+      if (attr !== null) {
+        const value = parseInt(attr, 10);
+        if (!isNaN(value)) {
+          (knobs as any)[knob] = Math.max(0, value);
+        }
+      }
+    });
+    
+    // Extract boolean value
+    const crisisMode = knobsElement.getAttribute('crisis_mode_enabled');
+    if (crisisMode !== null) {
+      knobs.crisis_mode_enabled = crisisMode === 'true' || crisisMode === '1';
+    }
+    
+    return knobs;
+  } catch (error) {
+    console.error('Error extracting knobs from XML:', error);
+    return {};
+  }
+}
+
 // Create a minimal XML template
 export function createMinimalXml(): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
