@@ -483,7 +483,13 @@ export default function ResultsPage() {
                   <section className="rounded-lg border bg-card overflow-hidden">
                     <div className="border-b px-4 py-3 font-medium">Full Conversation</div>
                     <div className="p-4">
-                      <ChatViewer turns={selectedConversation.turns} />
+                      <ChatViewer 
+                        turns={selectedConversation.turns} 
+                        lints={selectedConversation.lints}
+                        targetLanguage={runs.find(r => r.runId === selectedRun)?.results
+                          ?.find(res => res.conversations?.some(c => c.id === selectedConversation.id))
+                          ?.scenarioId?.includes('english') ? 'EN' : 'ES'}
+                      />
                     </div>
                   </section>
                 </>

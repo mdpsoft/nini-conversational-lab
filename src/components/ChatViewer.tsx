@@ -1,14 +1,25 @@
-import { Turn } from "../types/core";
+import { Turn, LintFinding } from "../types/core";
 import { Badge } from "@/components/ui/badge";
-import { User, Bot } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { User, Bot, AlertTriangle, Languages } from "lucide-react";
 import { countEmojis } from "../utils/emoji";
 
 interface ChatViewerProps {
   turns: Turn[];
+  lints?: Array<{ turnIndex: number; findings?: LintFinding[] }>;
+  targetLanguage?: string;
   className?: string;
 }
 
-export function ChatViewer({ turns, className }: ChatViewerProps) {
+export function ChatViewer({ turns, lints, targetLanguage = 'ES', className }: ChatViewerProps) {
+  const getLanguageMixFindings = (turnIndex: number) => {
+    if (!lints) return [];
+    
+    const turnLints = lints.find(lint => lint.turnIndex === turnIndex);
+    return turnLints?.findings?.filter(finding => 
+      finding.code === 'LANGUAGE_MIX' && !finding.pass
+    ) || [];
+  };
   if (turns.length === 0) {
     return (
       <div className={`flex items-center justify-center h-48 text-muted-foreground ${className}`}>
@@ -19,7 +30,22 @@ export function ChatViewer({ turns, className }: ChatViewerProps) {
 
   return (
     <div className={`space-y-4 ${className}`}>
-      {turns.map((turn, index) => (
+      {/* Language Mix Alert */}
+      {lints?.some(lint => 
+        lint.findings?.some(f => f.code === 'LANGUAGE_MIX' && !f.pass)
+      ) && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Language mixing detected. Nini switched languages during the conversation.
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {turns.map((turn, index) => {
+        const languageMixFindings = getLanguageMixFindings(index);
+        
+        return (
         <div
           key={index}
           className={`flex gap-3 ${
@@ -55,6 +81,12 @@ export function ChatViewer({ turns, className }: ChatViewerProps) {
                 Turn {index + 1}
               </Badge>
               
+              {/* Language badge */}
+              <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                <Languages className="w-3 h-3" />
+                {targetLanguage}
+              </Badge>
+              
               {turn.agent === 'nini' && (
                 <>
                   <Badge variant="outline" className="text-xs">
@@ -78,12 +110,21 @@ export function ChatViewer({ turns, className }: ChatViewerProps) {
                       Crisis
                     </Badge>
                   )}
+                  
+                  {/* Language mix warning */}
+                  {languageMixFindings.length > 0 && (
+                    <Badge variant="destructive" className="text-xs flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      Lang Mix
+                    </Badge>
+                  )}
                 </>
               )}
             </div>
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -357,6 +357,29 @@ export default function SettingsPage() {
                   );
                 }
                 
+                if (key === 'prefer_locale') {
+                  return (
+                    <div key={key} className="space-y-2">
+                      <Label className="text-sm capitalize">
+                        Preferred Language
+                      </Label>
+                      <Select 
+                        value={currentValue as string} 
+                        onValueChange={(value: 'es' | 'en' | 'auto') => setKnobsBase({ [key]: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">Auto-detect</SelectItem>
+                          <SelectItem value="es">Spanish</SelectItem>
+                          <SelectItem value="en">English</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                }
+                
                 if (typeof defaultValue === 'number') {
                   const isInteger = key.includes('turns') || key.includes('chars');
                   const max = isInteger ? (key.includes('chars') ? 2000 : 20) : 1;
@@ -366,6 +389,11 @@ export default function SettingsPage() {
                     <div key={key} className="space-y-2">
                       <Label className="text-sm capitalize">
                         {key.replace(/_/g, ' ')}: {currentValue}
+                        {key === 'language_strictness' && (
+                          <span className="text-xs text-muted-foreground ml-2">
+                            (Controls language mixing tolerance)
+                          </span>
+                        )}
                       </Label>
                       <Slider
                         value={[currentValue as number]}
