@@ -4,14 +4,30 @@ import { Knobs } from '../../types/core';
 
 export function insertKnobsIntoXml(xmlSystemSpec: string, knobs: Partial<Knobs>): string {
   try {
-    // Find the KnobOverrides comment and replace it with JSON
+    // Create the knobs JSON block
     const knobsJson = JSON.stringify(knobs, null, 2);
-    const knobsXml = `<!-- KnobOverrides -->\n<KnobOverrides>\n${knobsJson}\n</KnobOverrides>`;
+    const knobsBlock = `<!-- KnobOverrides -->\n<KnobOverrides><![CDATA[\n${knobsJson}\n]]></KnobOverrides>`;
     
-    // Replace the placeholder comment
-    const updatedXml = xmlSystemSpec.replace('<!-- KnobOverrides -->', knobsXml);
+    // Check if KnobOverrides already exists
+    const existingKnobsRegex = /<!-- KnobOverrides -->[\s\S]*?<\/KnobOverrides>/;
+    const placeholderRegex = /<!-- KnobOverrides -->/;
     
-    return updatedXml;
+    if (existingKnobsRegex.test(xmlSystemSpec)) {
+      // Replace existing KnobOverrides block
+      return xmlSystemSpec.replace(existingKnobsRegex, knobsBlock);
+    } else if (placeholderRegex.test(xmlSystemSpec)) {
+      // Replace placeholder comment
+      return xmlSystemSpec.replace(placeholderRegex, knobsBlock);
+    } else {
+      // Insert before closing SystemSpec tag
+      const closingTagRegex = /<\/SystemSpec>/;
+      if (closingTagRegex.test(xmlSystemSpec)) {
+        return xmlSystemSpec.replace(closingTagRegex, `\n  ${knobsBlock}\n</SystemSpec>`);
+      } else {
+        // Append at the end if no closing tag found
+        return xmlSystemSpec + '\n' + knobsBlock;
+      }
+    }
   } catch (error) {
     console.error('Error inserting knobs into XML:', error);
     return xmlSystemSpec;

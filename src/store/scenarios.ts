@@ -105,13 +105,12 @@ export const useScenariosStore = create<ScenariosState>()(
         scenarios.forEach((scenario, index) => {
           try {
             const validated = ScenarioSchema.parse(scenario);
-            // Check for duplicate IDs
-            if (get().scenarios.find((s) => s.id === validated.id)) {
-              const scenarioWithNewId: Scenario = { ...validated, id: generateId() };
-              validScenarios.push(scenarioWithNewId);
-            } else {
-              validScenarios.push(validated as Scenario);
-            }
+            // Check for duplicate IDs and ensure full Scenario type
+            const existingScenario = get().scenarios.find((s) => s.id === validated.id);
+            const completeScenario: Scenario = existingScenario 
+              ? { ...validated, id: generateId() } as Scenario
+              : validated as Scenario;
+            validScenarios.push(completeScenario);
           } catch (error) {
             errors.push(`Scenario ${index + 1}: ${error instanceof Error ? error.message : 'Invalid format'}`);
           }

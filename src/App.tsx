@@ -34,14 +34,14 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Layout>
-            <Routes>
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/scenarios" element={<ScenariosPage />} />
-              <Route path="/run" element={<RunPage />} />
-              <Route path="/results" element={<ResultsPage />} />
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="scenarios" element={<ScenariosPage />} />
+              <Route path="run" element={<RunPage />} />
+              <Route path="results" element={<ResultsPage />} />
               <Route 
-                path="/" 
+                index
                 element={
                   !xmlSystemSpec ? 
                     <Navigate to="/settings" replace /> : 
@@ -49,8 +49,8 @@ const App = () => {
                 } 
               />
               <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Layout>
+            </Route>
+          </Routes>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
