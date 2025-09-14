@@ -358,7 +358,7 @@ export default function ResultsPage() {
 
       {/* Conversation Detail Dialog */}
       <Dialog open={conversationDialogOpen} onOpenChange={setConversationDialogOpen}>
-        <DialogContent className="max-w-5xl w-[90vw] p-0">
+        <DialogContent className="max-w-5xl w-[95vw] p-0 sm:rounded-lg max-h-[90dvh] overflow-y-auto">
           {/* Header sticky */}
           <DialogHeader className="sticky top-0 bg-background z-10 border-b">
             <div className="flex items-center justify-between gap-3 p-4">
@@ -374,7 +374,7 @@ export default function ResultsPage() {
           </DialogHeader>
 
           {/* Contenido scrollable */}
-          <div className="max-h-[80vh] overflow-y-auto p-4 space-y-6">
+          <div className="p-4 space-y-6">
             {selectedConversation && (
               <>
                 {/* Score Breakdown */}
