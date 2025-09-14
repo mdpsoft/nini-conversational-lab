@@ -11,7 +11,7 @@ import { Eye, EyeOff, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { useSettingsStore } from "../../store/settings";
 import { XmlEditor } from "../../components/XmlEditor";
 import { DEFAULT_KNOBS } from "../../types/core";
-import { createMinimalXml, validateXmlSyntax, extractKnobsFromXml } from "../../core/nini/xml";
+import { createMinimalXml, validateXmlSyntax, extractKnobsFromXml, convertLegacyKnobsToStandard } from "../../core/nini/xml";
 import NiniAdapter from "../../core/nini/NiniAdapter";
 import { useToast } from "@/hooks/use-toast";
 
@@ -150,6 +150,34 @@ export default function SettingsPage() {
     }
   };
 
+  const handleConvertXmlKnobs = () => {
+    try {
+      const normalized = convertLegacyKnobsToStandard(xmlSystemSpec);
+      setXmlSystemSpec(normalized);
+
+      // Auto-sync sliders after conversion
+      const extractedKnobs = extractKnobsFromXml(normalized);
+      const cleanKnobs = Object.fromEntries(
+        Object.entries(extractedKnobs).filter(([_, value]) => value !== undefined)
+      );
+      if (Object.keys(cleanKnobs).length > 0) {
+        setKnobsBase(cleanKnobs);
+      }
+
+      toast({
+        title: "XML updated",
+        description: "Knobs converted to standard format and sliders synchronized.",
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      toast({
+        title: "Conversion failed",
+        description: msg,
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div>
@@ -278,7 +306,7 @@ export default function SettingsPage() {
                 onChange={setXmlSystemSpec}
                 placeholder="Enter your XML system specification..."
               />
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Button 
                   variant="outline" 
                   onClick={handleValidateXml}
@@ -292,6 +320,13 @@ export default function SettingsPage() {
                   className="flex-1"
                 >
                   Load knobs from XML
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={handleConvertXmlKnobs}
+                  className="flex-1"
+                >
+                  Convert XML Knobs
                 </Button>
               </div>
             </CardContent>

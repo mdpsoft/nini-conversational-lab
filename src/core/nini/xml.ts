@@ -127,27 +127,54 @@ export function extractEmojiPolicyFromXml(xml: string): EmojiPolicy {
   }
 }
 
-// Extract knobs from XML <Knobs> element
+// Extract knobs from XML <Knobs> element (supports <Knob key="..." value="..."/> and legacy attributes)
 export function extractKnobsFromXml(xml: string): Partial<Knobs> {
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(xml, 'application/xml');
-    
-    const knobsElement = doc.querySelector('Knobs');
-    if (!knobsElement) {
-      return {};
-    }
-    
+
     const knobs: Partial<Knobs> = {};
-    
-    // Extract numeric values [0..1]
-    const numericKnobs = [
+
+    // Prefer child <Knob> items inside <Knobs>
+    const knobItems = Array.from(doc.querySelectorAll('Knobs > Knob'));
+    const numericKeys = [
       'empathy', 'mirroring_intensity', 'humor', 'probing_rate',
       'uncertainty_threshold', 'clarification_threshold', 'bias_confirmation_soft',
       'directiveness', 'gentleness', 'colloquiality', 'emoji_bias'
     ];
-    
-    numericKnobs.forEach(knob => {
+    const integerKeys = ['ask_rate_min_turns', 'ask_rate_max_turns', 'max_chars_per_message'];
+
+    if (knobItems.length > 0) {
+      knobItems.forEach((el) => {
+        const key = (el.getAttribute('key') || '').trim();
+        const raw = (el.getAttribute('value') || '').trim();
+        if (!key || raw === '') return;
+
+        if (key === 'crisis_mode_enabled') {
+          knobs.crisis_mode_enabled = /^true$/i.test(raw) || raw === '1';
+          return;
+        }
+        if (integerKeys.includes(key)) {
+          const n = parseInt(raw, 10);
+          if (!isNaN(n)) (knobs as any)[key] = Math.max(0, n);
+          return;
+        }
+        if (numericKeys.includes(key)) {
+          const f = parseFloat(raw);
+          if (!isNaN(f)) (knobs as any)[key] = Math.max(0, Math.min(1, f));
+        }
+      });
+      return knobs;
+    }
+
+    // Backward compatibility: <Knobs empathy="0.8" ...>
+    const knobsElement = doc.querySelector('Knobs');
+    if (!knobsElement) {
+      return {};
+    }
+
+    // Extract numeric values [0..1]
+    numericKeys.forEach((knob) => {
       const attr = knobsElement.getAttribute(knob);
       if (attr !== null) {
         const value = parseFloat(attr);
@@ -156,13 +183,9 @@ export function extractKnobsFromXml(xml: string): Partial<Knobs> {
         }
       }
     });
-    
+
     // Extract integer values
-    const integerKnobs = [
-      'ask_rate_min_turns', 'ask_rate_max_turns', 'max_chars_per_message'
-    ];
-    
-    integerKnobs.forEach(knob => {
+    integerKeys.forEach((knob) => {
       const attr = knobsElement.getAttribute(knob);
       if (attr !== null) {
         const value = parseInt(attr, 10);
@@ -171,13 +194,13 @@ export function extractKnobsFromXml(xml: string): Partial<Knobs> {
         }
       }
     });
-    
+
     // Extract boolean value
     const crisisMode = knobsElement.getAttribute('crisis_mode_enabled');
     if (crisisMode !== null) {
       knobs.crisis_mode_enabled = crisisMode === 'true' || crisisMode === '1';
     }
-    
+
     return knobs;
   } catch (error) {
     console.error('Error extracting knobs from XML:', error);
@@ -212,4 +235,68 @@ export function createMinimalXml(): string {
   
   <!-- KnobOverrides -->
 </SystemSpec>`;
+}
+
+// Convert legacy <empathy>0.8</empathy> style into
+// <Knobs>\n  <Knob key="empathy" value="0.8"/>\n</Knobs>
+// Keeps the rest of the XML intact as much as possible
+export function convertLegacyKnobsToStandard(xmlSystemSpec: string): string {
+  try {
+    let xml = xmlSystemSpec;
+
+    const numericKeys = [
+      'empathy', 'mirroring_intensity', 'humor', 'probing_rate',
+      'uncertainty_threshold', 'clarification_threshold', 'bias_confirmation_soft',
+      'directiveness', 'gentleness', 'colloquiality', 'emoji_bias'
+    ];
+    const integerKeys = ['ask_rate_min_turns', 'ask_rate_max_turns', 'max_chars_per_message'];
+    const booleanKeys = ['crisis_mode_enabled'];
+    const allKeys = [...numericKeys, ...integerKeys, ...booleanKeys];
+
+    const values: Record<string, number | boolean> = {};
+
+    // Remove legacy elements and collect values
+    allKeys.forEach((key) => {
+      const re = new RegExp(`<${key}>\\s*([\\s\\S]*?)\\s*<\\/${key}>`, 'gi');
+      xml = xml.replace(re, (_m, group1) => {
+        const raw = String(group1).trim();
+        if (booleanKeys.includes(key)) {
+          values[key] = /^true$/i.test(raw) || raw === '1';
+        } else if (integerKeys.includes(key)) {
+          const n = parseInt(raw, 10);
+          if (!isNaN(n)) values[key] = Math.max(0, n);
+        } else {
+          const f = parseFloat(raw);
+          if (!isNaN(f)) values[key] = Math.max(0, Math.min(1, f));
+        }
+        return '';
+      });
+    });
+
+    // Build standardized Knobs block
+    const knobLines = Object.entries(values).map(([k, v]) => {
+      const valStr = typeof v === 'boolean' ? (v ? 'true' : 'false') : String(v);
+      return `  <Knob key="${k}" value="${valStr}"/>`;
+    });
+    const knobsBlock = `<Knobs>\n${knobLines.join('\n')}\n</Knobs>`;
+
+    // Replace existing <Knobs> block if present
+    const existingKnobsRegex = /<Knobs>[\s\S]*?<\/Knobs>/i;
+    if (existingKnobsRegex.test(xml)) {
+      xml = xml.replace(existingKnobsRegex, knobsBlock);
+    } else {
+      // Insert before </SystemSpec> when possible
+      const closingTagRegex = /<\/SystemSpec>/i;
+      if (closingTagRegex.test(xml)) {
+        xml = xml.replace(closingTagRegex, `${knobsBlock}\n</SystemSpec>`);
+      } else {
+        xml = `${xml}\n${knobsBlock}`;
+      }
+    }
+
+    return xml;
+  } catch (error) {
+    console.error('Error converting legacy knobs to standard:', error);
+    return xmlSystemSpec;
+  }
 }
