@@ -110,6 +110,10 @@ const LINT_EXPLANATION: Record<
     why: 'Consejo legal/médico directo (prohibido).',
     fix: 'Redirigir a profesionales/recursos y usar lenguaje de orientación.',
   },
+  LANGUAGE_MIX: {
+    why: 'Se detectó mezcla de idiomas en la respuesta (code-switching).',
+    fix: 'Subir "language_strictness" a 0.9+ y reforzar el prompt de idioma; verificar que scenario.language esté bien configurado.',
+  },
 }
 
 function lintCounts(lints: LintResult[] = []) {

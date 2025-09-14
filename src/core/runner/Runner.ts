@@ -64,9 +64,12 @@ export class Runner {
     // Main conversation loop
     for (let turnIndex = 0; turnIndex < options.maxTurns && userTurn; turnIndex++) {
       try {
+        // Build language-enforced system prompt
+        const languageGuardedSpec = this.addLanguageGuard(xmlSystemSpec, scenario, knobsBase);
+        
         // Get Nini's response
         const niniResponse = await NiniAdapter.respondWithNini(
-          xmlSystemSpec,
+          languageGuardedSpec,
           conversation.turns,
           knobsBase,
           niniOptions,
@@ -109,11 +112,27 @@ export class Runner {
     }
 
     // Apply linters
-    conversation.lints = runAllLinters(conversation.turns, xmlSystemSpec);
+    conversation.lints = runAllLinters(conversation.turns, xmlSystemSpec, scenario.language);
     
     // Calculate scores
     conversation.scores = aggregateScores(conversation.lints);
 
     return conversation;
+  }
+  
+  private static addLanguageGuard(xmlSystemSpec: string, scenario: Scenario, knobs: any): string {
+    const targetLocale = scenario.language;
+    const strictness = knobs.language_strictness || 0.9;
+    
+    if (targetLocale === 'mix' || strictness < 0.5) {
+      return xmlSystemSpec; // No language enforcement
+    }
+    
+    const languageGuard = targetLocale === 'es'
+      ? `You must respond **only in Spanish**. If the user writes in a different language, ask once: "¿Preferís que sigamos en ese idioma?" and wait for explicit confirmation before switching. Until confirmed, continue in Spanish. Never mix languages in the same message.`
+      : `You must respond **only in English**. If the user writes in a different language, ask once: "Would you like to switch to that language?" and wait for explicit confirmation before switching. Until confirmed, continue in English. Never mix languages in the same message.`;
+    
+    // Insert language guard at the beginning for maximum priority
+    return `Target locale: ${targetLocale}\n${languageGuard}\n\n${xmlSystemSpec}`;
   }
 }

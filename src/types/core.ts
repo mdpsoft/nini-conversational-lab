@@ -31,6 +31,8 @@ export interface Knobs {
   colloquiality: number; // [0..1]
   emoji_bias: number; // [0..1]
   crisis_mode_enabled: boolean;
+  language_strictness?: number; // [0..1]
+  prefer_locale?: 'es' | 'en' | 'auto';
 }
 
 export interface Scenario {
@@ -113,6 +115,8 @@ export const KnobsSchema = z.object({
   colloquiality: z.number().min(0).max(1),
   emoji_bias: z.number().min(0).max(1),
   crisis_mode_enabled: z.boolean(),
+  language_strictness: z.number().min(0).max(1).optional(),
+  prefer_locale: z.enum(['es', 'en', 'auto']).optional(),
 });
 
 export const ScenarioSchema = z.object({
@@ -159,4 +163,6 @@ export const DEFAULT_KNOBS: Knobs = {
   colloquiality: 0.5,
   emoji_bias: 0.3,
   crisis_mode_enabled: true,
+  language_strictness: 0.9,
+  prefer_locale: 'auto',
 };

@@ -28,6 +28,9 @@ export const LINT_CODES = {
   DIAGNOSIS: 'DIAGNOSIS',
   LEGAL_MEDICAL_ADVICE: 'LEGAL_MEDICAL_ADVICE',
   
+  // Language
+  LANGUAGE_MIX: 'LANGUAGE_MIX',
+  
   // System errors
   OPENAI_ERROR: 'OPENAI_ERROR',
   OPENAI_TIMEOUT: 'OPENAI_TIMEOUT',
@@ -353,9 +356,36 @@ export function boundaryLinter(turns: Turn[]): TurnLintResult[] {
 }
 
 // Main linter aggregator
+export function languageLinter(turns: Turn[], targetLanguage: 'es' | 'en' | 'mix'): TurnLintResult[] {
+  if (targetLanguage === 'mix') return []; // Allow mixing if scenario is set to mix
+  
+  const results: TurnLintResult[] = [];
+  
+  turns.forEach((turn, index) => {
+    if (turn.agent !== 'nini') return;
+    
+    const findings: LintFinding[] = [];
+    const lintResult = lintLanguageMix(turn.text, targetLanguage);
+    
+    if (!lintResult.pass) {
+      findings.push(lintResult);
+    }
+    
+    if (findings.length > 0) {
+      results.push({
+        turnIndex: index,
+        findings,
+      });
+    }
+  });
+  
+  return results;
+}
+
 export function runAllLinters(
   turns: Turn[], 
-  xmlSystemSpec?: string
+  xmlSystemSpec?: string,
+  targetLanguage: 'es' | 'en' | 'mix' = 'es'
 ): TurnLintResult[] {
   const maxChars = xmlSystemSpec ? extractMaxLengthFromXml(xmlSystemSpec) : 900;
   const emojiPolicy = xmlSystemSpec ? extractEmojiPolicyFromXml(xmlSystemSpec) : {
@@ -372,6 +402,7 @@ export function runAllLinters(
     ...safetyLinter(turns),
     ...evidenceLinter(turns),
     ...boundaryLinter(turns),
+    ...languageLinter(turns, targetLanguage),
   ];
   
   // Merge results by turn index
@@ -506,6 +537,32 @@ function detectMedicalLegalAdvice(text: string): boolean {
   
   const lowerText = text.toLowerCase();
   return advicePatterns.some(pattern => lowerText.includes(pattern));
+}
+
+export function lintLanguageMix(text: string, target: 'es' | 'en'): LintFinding {
+  const lower = text.toLowerCase();
+  
+  const enMarkers = [' the ', ' and ', ' is ', ' are ', ' i ', ' you ', " don't ", " can't ", ' would ', ' should ', ' going to ', ' will ', ' have ', ' has '];
+  const esMarkers = [' que ', ' de ', ' para ', ' con ', ' pero ', ' porque ', ' entonces ', ' así ', ' quizá ', ' vale ', ' está ', ' estás ', ' tienes ', ' puedes '];
+  
+  const hasEn = enMarkers.some(m => lower.includes(m));
+  const hasEs = esMarkers.some(m => lower.includes(m));
+  
+  if (target === 'es' && hasEn) {
+    return { 
+      code: LINT_CODES.LANGUAGE_MIX, 
+      pass: false, 
+      details: 'Respuesta en español contiene marcadores de inglés. Evitar code-switching.' 
+    };
+  }
+  if (target === 'en' && hasEs) {
+    return { 
+      code: LINT_CODES.LANGUAGE_MIX, 
+      pass: false, 
+      details: 'English reply contains Spanish markers. Avoid code-switching.' 
+    };
+  }
+  return { code: LINT_CODES.LANGUAGE_MIX, pass: true };
 }
 
 function mergeLintResults(results: TurnLintResult[]): TurnLintResult[] {
