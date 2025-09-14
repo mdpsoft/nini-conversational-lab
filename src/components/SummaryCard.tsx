@@ -56,24 +56,24 @@ export function SummaryCard({ title, text }: { title: string; text: string }) {
 
   return (
     <Card className="mt-4">
-      <CardHeader className="py-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{title}</CardTitle>
-          <Collapsible open={open} onOpenChange={setOpen} className="w-auto">
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CardHeader className="py-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">{title}</CardTitle>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-1">
                 {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 {open ? "Ocultar" : "Mostrar"}
               </Button>
             </CollapsibleTrigger>
-          </Collapsible>
-        </div>
-      </CardHeader>
-      <CollapsibleContent asChild>
-        <CardContent className="prose prose-sm max-w-none pt-1 space-y-3">
-          {rich}
-        </CardContent>
-      </CollapsibleContent>
+          </div>
+        </CardHeader>
+        <CollapsibleContent asChild>
+          <CardContent className="prose prose-sm max-w-none pt-1 space-y-3">
+            {rich}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   )
 }
