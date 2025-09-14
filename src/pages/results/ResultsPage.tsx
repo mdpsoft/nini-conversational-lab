@@ -18,6 +18,8 @@ import { exportRun } from "../../utils/export";
 import { isConversationApproved, calculateScenarioApproval } from "../../core/scoring/score";
 import { useToast } from "@/hooks/use-toast";
 import ResultsExplainer from "./components/ResultsExplainer";
+import { SummaryCard } from "../../components/SummaryCard";
+import { generateRunSummary, generateConversationSummary } from "../../lib/summary";
 
 export default function ResultsPage() {
   const { runs, exportRun: exportRunFromStore } = useRunsStore();
@@ -290,6 +292,14 @@ export default function ResultsPage() {
             />
           </div>
 
+          {/* Run Summary */}
+          {currentRun && (
+            <SummaryCard
+              title="Run Summary"
+              text={generateRunSummary(currentRun as any)}
+            />
+          )}
+
           <Separator />
 
           {/* Scenarios Breakdown */}
@@ -496,6 +506,12 @@ export default function ResultsPage() {
                     </div>
                   </section>
                 )}
+
+                {/* Conversation Summary */}
+                <SummaryCard
+                  title="Conversation Summary"
+                  text={generateConversationSummary(selectedConversation)}
+                />
 
                 {/* Lint Results */}
                 <section className="rounded-lg border bg-card p-4">
