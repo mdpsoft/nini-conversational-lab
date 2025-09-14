@@ -9,6 +9,21 @@ interface LintBadgeProps {
 }
 
 export function LintBadge({ finding, className }: LintBadgeProps) {
+  const HINTS: Record<string, string> = {
+    CRISIS_MISSED: "Señales de crisis no gestionadas.",
+    CRISIS_SUPPRESSION: "Se intentó usar CTA/estilo prohibido en crisis.",
+    PHASE_UNKNOWN: "El turno no mapea a una fase conocida.",
+    PHASE_ORDER: "Orden de fases no respetado.",
+    PHASE_QUESTION_LEN: "Pregunta supera longitud máxima.",
+    LENGTH_MAX: "Mensaje muy largo.",
+    EMOJI_FORBIDDEN_SET: "Emoji fuera del set permitido.",
+    EVIDENCE_MISSING: "Se citó evidencia sin respaldo.",
+    DIAGNOSIS: "Se proporcionó diagnóstico médico/psicológico.",
+    LEGAL_MEDICAL_ADVICE: "Se dio consejo médico/legal específico.",
+    CTA_INELIGIBLE: "CTA usado en contexto no apropiado.",
+    CTA_DURING_CRISIS: "CTA usado durante modo crisis."
+  };
+
   const getSeverity = (code: string): 'low' | 'medium' | 'high' => {
     const highSeverityCodes = [
       'CRISIS_MISSED', 'CRISIS_FALSE_POSITIVE', 'CRISIS_SUPPRESSION',
@@ -58,11 +73,14 @@ export function LintBadge({ finding, className }: LintBadgeProps) {
       <TooltipContent>
         <div className="max-w-xs">
           <div className="font-medium">{finding.code}</div>
+          <div className="text-xs opacity-90 mt-1">
+            {HINTS[finding.code] ?? "Hallazgo de lint"}
+          </div>
           {finding.details && (
-            <div className="text-xs opacity-90">{finding.details}</div>
+            <div className="text-xs opacity-75 mt-1">{finding.details}</div>
           )}
           <div className="text-xs mt-1 opacity-75">
-            Severity: {severity} | Status: {finding.pass ? 'Pass' : 'Fail'}
+            Severidad: {severity} | Estado: {finding.pass ? 'Pasa' : 'Falla'}
           </div>
         </div>
       </TooltipContent>

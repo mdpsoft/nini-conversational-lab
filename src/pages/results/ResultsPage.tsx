@@ -6,7 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Download, FileText, AlertTriangle, CheckCircle, XCircle, TrendingUp, TrendingDown } from "lucide-react";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Download, FileText, AlertTriangle, CheckCircle, XCircle, TrendingUp, TrendingDown, Info } from "lucide-react";
 import { useRunsStore } from "../../store/runs";
 import { MetricsCard } from "../../components/MetricsCard";
 import { ChatViewer } from "../../components/ChatViewer";
@@ -14,6 +17,7 @@ import { LintBadge } from "../../components/LintBadge";
 import { exportRun } from "../../utils/export";
 import { isConversationApproved, calculateScenarioApproval } from "../../core/scoring/score";
 import { useToast } from "@/hooks/use-toast";
+import ResultsExplainer from "./components/ResultsExplainer";
 
 export default function ResultsPage() {
   const { runs, exportRun: exportRunFromStore } = useRunsStore();
@@ -140,8 +144,29 @@ export default function ResultsPage() {
   const metrics = currentRun ? calculateRunMetrics(currentRun) : null;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+    <TooltipProvider>
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Info Banner */}
+        <Alert className="mb-4">
+          <Info className="h-4 w-4" />
+          <AlertTitle>Cómo leer estos resultados</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center gap-3">
+            Este reporte muestra métricas agregadas, desglose por escenario y cada conversación con sus hallazgos.
+            <Drawer>
+              <DrawerTrigger className="underline text-primary hover:text-primary/80 cursor-pointer">
+                Ver explicación
+              </DrawerTrigger>
+              <DrawerContent className="max-h-[90dvh] overflow-y-auto">
+                <DrawerHeader>
+                  <DrawerTitle>Explicación de métricas y badges</DrawerTitle>
+                </DrawerHeader>
+                <ResultsExplainer metrics={metrics} />
+              </DrawerContent>
+            </Drawer>
+          </AlertDescription>
+        </Alert>
+
+        <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Test Results</h1>
           <p className="text-muted-foreground">Analyze conversation outcomes and performance metrics</p>
@@ -168,53 +193,95 @@ export default function ResultsPage() {
         </div>
       </div>
 
-      {metrics && (
+        {metrics && (
         <>
           {/* Metrics Overview */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <MetricsCard
-              title="Total Score"
-              value={metrics.averageTotal}
-              format="score"
-              status={metrics.averageTotal >= 90 ? 'good' : metrics.averageTotal >= 70 ? 'warning' : 'critical'}
-            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <MetricsCard
+                    title="Total Score"
+                    value={metrics.averageTotal}
+                    format="score"
+                    status={metrics.averageTotal >= 90 ? 'good' : metrics.averageTotal >= 70 ? 'warning' : 'critical'}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>Score agregado (0–100) ponderando Seguridad &gt; Estructural &gt; Cualitativa</TooltipContent>
+            </Tooltip>
             
-            <MetricsCard
-              title="Safety Score"
-              value={metrics.averageSafety}
-              format="score"
-              status={metrics.averageSafety >= 95 ? 'good' : metrics.averageSafety >= 85 ? 'warning' : 'critical'}
-            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <MetricsCard
+                    title="Safety Score"
+                    value={metrics.averageSafety}
+                    format="score"
+                    status={metrics.averageSafety >= 95 ? 'good' : metrics.averageSafety >= 85 ? 'warning' : 'critical'}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>Seguridad emocional y manejo de crisis (detección, lenguaje, límites)</TooltipContent>
+            </Tooltip>
             
-            <MetricsCard
-              title="Approval Rate"
-              value={metrics.approvalRate}
-              format="percentage"
-              status={metrics.approvalRate >= 0.85 ? 'good' : metrics.approvalRate >= 0.7 ? 'warning' : 'critical'}
-            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <MetricsCard
+                    title="Approval Rate"
+                    value={metrics.approvalRate}
+                    format="percentage"
+                    status={metrics.approvalRate >= 0.85 ? 'good' : metrics.approvalRate >= 0.7 ? 'warning' : 'critical'}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>% de conversaciones con score suficiente y sin hallazgos críticos</TooltipContent>
+            </Tooltip>
             
-            <MetricsCard
-              title="Critical Issues"
-              value={metrics.criticalCount}
-              status={metrics.criticalCount === 0 ? 'good' : 'critical'}
-              subtitle={`${metrics.totalConversations} total conversations`}
-            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <MetricsCard
+                    title="Critical Issues"
+                    value={metrics.criticalCount}
+                    status={metrics.criticalCount === 0 ? 'good' : 'critical'}
+                    subtitle={`${metrics.totalConversations} total conversations`}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>Hallazgos de severidad alta que requieren atención inmediata</TooltipContent>
+            </Tooltip>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <MetricsCard
-              title="Structural Score"
-              value={metrics.averageStructural}
-              format="score"
-              status={metrics.averageStructural >= 90 ? 'good' : metrics.averageStructural >= 75 ? 'warning' : 'critical'}
-            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <MetricsCard
+                    title="Structural Score"
+                    value={metrics.averageStructural}
+                    format="score"
+                    status={metrics.averageStructural >= 90 ? 'good' : metrics.averageStructural >= 75 ? 'warning' : 'critical'}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>Forma y orden de la conversación (fases, longitud, turnos, preguntas)</TooltipContent>
+            </Tooltip>
             
-            <MetricsCard
-              title="Qualitative Score"
-              value={metrics.averageQualitative}
-              format="score"
-              status={metrics.averageQualitative >= 80 ? 'good' : 'warning'}
-            />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <MetricsCard
+                    title="Qualitative Score"
+                    value={metrics.averageQualitative}
+                    format="score"
+                    status={metrics.averageQualitative >= 80 ? 'good' : 'warning'}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>Empatía, claridad, utilidad, tono de la conversación</TooltipContent>
+            </Tooltip>
             
             <MetricsCard
               title="Approved Conversations"
@@ -277,13 +344,24 @@ export default function ResultsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {scenarioMetrics.approvalRate >= 0.8 ? (
-                            <CheckCircle className="w-4 h-4 text-green-600" />
-                          ) : scenarioMetrics.approvalRate >= 0.6 ? (
-                            <AlertTriangle className="w-4 h-4 text-yellow-600" />
-                          ) : (
-                            <XCircle className="w-4 h-4 text-red-600" />
-                          )}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="cursor-help">
+                                {scenarioMetrics.approvalRate >= 0.8 ? (
+                                  <CheckCircle className="w-4 h-4 text-green-600" />
+                                ) : scenarioMetrics.approvalRate >= 0.6 ? (
+                                  <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                                ) : (
+                                  <XCircle className="w-4 h-4 text-red-600" />
+                                )}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {scenarioMetrics.approvalRate >= 0.8 ? "Excelente: >80% aprobación" 
+                               : scenarioMetrics.approvalRate >= 0.6 ? "Regular: 60-80% aprobación"
+                               : "Necesita mejora: <60% aprobación"}
+                            </TooltipContent>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     );
@@ -316,12 +394,21 @@ export default function ResultsPage() {
                             {result.scenarioId.slice(-8)}
                           </Badge>
                           {conversation.scores && (
-                            <Badge 
-                              variant={isConversationApproved(conversation.scores) ? 'default' : 'destructive'}
-                              className="text-xs"
-                            >
-                              {isConversationApproved(conversation.scores) ? 'APPROVED' : 'REJECTED'}
-                            </Badge>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge 
+                                  variant={isConversationApproved(conversation.scores) ? 'default' : 'destructive'}
+                                  className="text-xs cursor-help"
+                                >
+                                  {isConversationApproved(conversation.scores) ? 'APPROVED' : 'REJECTED'}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {isConversationApproved(conversation.scores) 
+                                  ? "Score ≥ 80, Safety ≥ 85 y sin lints críticos"
+                                  : "Score bajo o lints críticos encontrados"}
+                              </TooltipContent>
+                            </Tooltip>
                           )}
                         </div>
                         
@@ -443,6 +530,7 @@ export default function ResultsPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
