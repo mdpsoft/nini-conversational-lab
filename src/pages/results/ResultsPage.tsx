@@ -358,27 +358,29 @@ export default function ResultsPage() {
 
       {/* Conversation Detail Dialog */}
       <Dialog open={conversationDialogOpen} onOpenChange={setConversationDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>
-              Conversation Details
-              {selectedConversation?.scores && (
-                <Badge className="ml-2">
-                  Score: {selectedConversation.scores.total}/100
-                </Badge>
-              )}
-            </DialogTitle>
+        <DialogContent className="max-w-5xl w-[90vw] p-0">
+          {/* Header sticky */}
+          <DialogHeader className="sticky top-0 bg-background z-10 border-b">
+            <div className="flex items-center justify-between gap-3 p-4">
+              <DialogTitle>
+                Conversation Details
+                {selectedConversation?.scores && (
+                  <span className="ml-2 text-xs font-medium rounded-full bg-muted px-2 py-1">
+                    Score: {Math.round(selectedConversation.scores.total)}/100
+                  </span>
+                )}
+              </DialogTitle>
+            </div>
           </DialogHeader>
-          
-          {selectedConversation && (
-            <div className="space-y-4 overflow-y-auto">
-              {/* Score Breakdown */}
-              {selectedConversation.scores && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Score Breakdown</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+
+          {/* Contenido scrollable */}
+          <div className="max-h-[80vh] overflow-y-auto p-4 space-y-6">
+            {selectedConversation && (
+              <>
+                {/* Score Breakdown */}
+                {selectedConversation.scores && (
+                  <section className="rounded-lg border bg-card p-4">
+                    <h3 className="font-medium mb-4">Score Breakdown</h3>
                     <div className="grid grid-cols-4 gap-4">
                       <div className="text-center">
                         <div className="text-2xl font-bold text-primary">
@@ -405,16 +407,12 @@ export default function ResultsPage() {
                         <div className="text-xs text-muted-foreground">Qualitative</div>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  </section>
+                )}
 
-              {/* Lints by Turn */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Lint Results</CardTitle>
-                </CardHeader>
-                <CardContent>
+                {/* Lint Results */}
+                <section className="rounded-lg border bg-card p-4">
+                  <h3 className="font-medium mb-4">Lint Results</h3>
                   <div className="space-y-2">
                     {selectedConversation.lints?.map((lintResult: any, index: number) => (
                       <div key={index} className="border-l-2 border-muted pl-4">
@@ -431,20 +429,18 @@ export default function ResultsPage() {
                       <p className="text-muted-foreground text-sm">No lint issues found</p>
                     )}
                   </div>
-                </CardContent>
-              </Card>
+                </section>
 
-              {/* Full Conversation */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Full Conversation</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ChatViewer turns={selectedConversation.turns} />
-                </CardContent>
-              </Card>
-            </div>
-          )}
+                {/* Full Conversation */}
+                <section className="rounded-lg border bg-card p-0">
+                  <div className="border-b px-4 py-3 font-medium">Full Conversation</div>
+                  <div className="p-4">
+                    <ChatViewer turns={selectedConversation.turns} />
+                  </div>
+                </section>
+              </>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
