@@ -298,7 +298,7 @@ export function CollapsibleNav() {
                         "hover:bg-accent hover:text-accent-foreground",
                         "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
                         "transition-colors",
-                        (linkActive || isItemActive) && "bg-accent text-accent-foreground font-medium border-l-2 border-primary"
+                        (linkActive || isItemActive) && "bg-accent text-accent-foreground font-medium"
                       )}
                     >
                       <ItemIcon className="h-4 w-4" />
