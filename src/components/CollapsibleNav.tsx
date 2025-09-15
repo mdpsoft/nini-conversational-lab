@@ -36,6 +36,7 @@ interface NavGroup {
   icon: any;
   items: NavItem[];
   defaultExpanded?: boolean;
+  debug?: boolean;
 }
 
 const NAV_GROUPS: NavGroup[] = [
@@ -43,6 +44,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Workspace",
     icon: FolderKanban,
     defaultExpanded: true,
+    debug: true,
     items: [
       { title: "Scenarios", url: "/scenarios", icon: FileText },
       { title: "Run Tests", url: "/run", icon: Play },
@@ -93,6 +95,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { title: "Saved Views", url: "/saved-views", icon: Save },
       { title: "Environment / API Keys", url: "/settings/env", icon: Wrench },
+      { title: "Nav Debug", url: "/settings/nav-debug", icon: Bug },
       { title: "Main Settings", url: "/settings", icon: Settings },
     ]
   },
@@ -106,26 +109,54 @@ export function CollapsibleNav() {
 
   // Initialize expanded state from localStorage and defaults
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      const savedState = saved ? JSON.parse(saved) : {};
-      
-      // Merge with defaults
-      const initialState = NAV_GROUPS.reduce((acc, group) => {
-        acc[group.title] = savedState[group.title] ?? group.defaultExpanded ?? false;
-        return acc;
-      }, {} as Record<string, boolean>);
-      
-      setExpandedGroups(initialState);
-    } catch (error) {
-      console.error("Failed to load navigation state:", error);
-      // Use defaults
-      const defaultState = NAV_GROUPS.reduce((acc, group) => {
-        acc[group.title] = group.defaultExpanded ?? false;
-        return acc;
-      }, {} as Record<string, boolean>);
-      setExpandedGroups(defaultState);
-    }
+    const loadNavState = () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        const savedState = saved ? JSON.parse(saved) : {};
+        
+        // Merge with defaults - use saved state if exists, otherwise defaultExpanded
+        const initialState = NAV_GROUPS.reduce((acc, group) => {
+          const hasStoredValue = group.title in savedState;
+          acc[group.title] = hasStoredValue ? savedState[group.title] : (group.defaultExpanded ?? false);
+          
+          if (group.debug) {
+            console.debug(`[CollapsibleNav] ${group.title} mount expanded=${acc[group.title]} (stored: ${hasStoredValue})`);
+          }
+          
+          return acc;
+        }, {} as Record<string, boolean>);
+        
+        setExpandedGroups(initialState);
+      } catch (error) {
+        console.error("Failed to load navigation state:", error);
+        // Use defaults
+        const defaultState = NAV_GROUPS.reduce((acc, group) => {
+          acc[group.title] = group.defaultExpanded ?? false;
+          if (group.debug) {
+            console.debug(`[CollapsibleNav] ${group.title} mount expanded=${acc[group.title]} (fallback)`);
+          }
+          return acc;
+        }, {} as Record<string, boolean>);
+        setExpandedGroups(defaultState);
+      }
+    };
+
+    // Initial load
+    loadNavState();
+
+    // Listen for external state changes
+    const handleNavStateChange = (event: CustomEvent) => {
+      if (NAV_GROUPS.some(g => g.debug)) {
+        console.debug("[CollapsibleNav] External nav:state:changed event received, re-syncing...");
+      }
+      loadNavState();
+    };
+
+    window.addEventListener('nav:state:changed', handleNavStateChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('nav:state:changed', handleNavStateChange as EventListener);
+    };
   }, []);
 
   // Auto-expand group containing current route
@@ -154,7 +185,19 @@ export function CollapsibleNav() {
   const toggleGroup = (groupTitle: string) => {
     setExpandedGroups(prev => {
       const newState = { ...prev, [groupTitle]: !prev[groupTitle] };
+      
+      // Find group for debug logging
+      const group = NAV_GROUPS.find(g => g.title === groupTitle);
+      if (group?.debug) {
+        console.debug(`[CollapsibleNav] ${groupTitle} toggle -> ${newState[groupTitle]}`);
+      }
+      
+      // Persist immediately
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      
+      // Dispatch event
+      window.dispatchEvent(new CustomEvent('nav:state:changed', { detail: newState }));
+      
       return newState;
     });
   };
@@ -187,12 +230,14 @@ export function CollapsibleNav() {
                 "w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md",
                 "hover:bg-accent hover:text-accent-foreground",
                 "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-                "transition-colors"
+                "transition-colors relative z-10",
+                group.debug && "hover:outline hover:outline-1 hover:outline-dashed hover:outline-yellow-400"
               )}
               onClick={() => toggleGroup(group.title)}
               onKeyDown={(e) => handleKeyDown(e, group.title)}
               aria-expanded={isExpanded}
               aria-controls={`nav-group-${group.title.replace(/\s+/g, '-').toLowerCase()}`}
+              style={{ pointerEvents: 'auto' }}
             >
               <GroupIcon className="h-4 w-4 shrink-0" />
               <span className="flex-1 text-left">{group.title}</span>
