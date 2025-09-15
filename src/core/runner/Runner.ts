@@ -57,7 +57,7 @@ export class Runner {
     userAIProfile?: any
   ): Promise<Conversation> {
     const conversationId = generateId();
-    const userAI = createUserAI(scenario, seed, userAIProfile);
+    const userAI = createUserAI(scenario, seed, userAIProfile, options.maxTurns);
     
     const conversation: Conversation = {
       id: conversationId,
@@ -85,6 +85,11 @@ export class Runner {
           meta: userAIResponse.meta
         };
         conversation.turns.push(userTurn);
+        
+        // Store runtime debug info in conversation metadata
+        if (userAIResponse.meta?.runtime_debug) {
+          (conversation as any).runtime_debug = userAIResponse.meta.runtime_debug;
+        }
       }
     } else {
       // Fallback to scenario-driven conversation
@@ -150,6 +155,11 @@ export class Runner {
                 meta: userAIResponse.meta
               };
               conversation.turns.push(userTurn);
+              
+              // Store runtime debug info in conversation metadata
+              if (userAIResponse.meta?.runtime_debug) {
+                (conversation as any).runtime_debug = userAIResponse.meta.runtime_debug;
+              }
             } else {
               userTurn = null; // End conversation on USERAI error
             }

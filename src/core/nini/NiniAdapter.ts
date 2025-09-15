@@ -58,7 +58,7 @@ class NiniAdapter {
     niniOptions: NiniOptions,
     simulationMode: boolean = false
   ): Promise<NiniResponse> {
-    const runtimePrompt = userAI.buildRuntimePrompt();
+    const runtimePrompt = await userAI.buildRuntimePrompt();
     
     if (!runtimePrompt) {
       // Fallback to regular generation if no profile
@@ -76,7 +76,8 @@ class NiniAdapter {
         meta: { 
           simulated: true,
           runtime_prompt_used: true,
-          prompt_length: runtimePrompt.length
+          prompt_length: runtimePrompt.length,
+          runtime_debug: userAI.getRuntimeDebugInfo()
         }
       };
     }
@@ -114,7 +115,8 @@ class NiniAdapter {
           runtime_prompt_used: true,
           prompt_length: runtimePrompt.length,
           model: niniOptions.model,
-          usage: data.usage
+          usage: data.usage,
+          runtime_debug: userAI.getRuntimeDebugInfo()
         }
       };
     } catch (error) {
@@ -125,7 +127,8 @@ class NiniAdapter {
         meta: { 
           error: true,
           fallback: true,
-          runtime_prompt_available: true
+          runtime_prompt_available: true,
+          runtime_debug: userAI.getRuntimeDebugInfo()
         }
       };
     }

@@ -1,6 +1,8 @@
 import { Scenario, Turn, Knobs } from '../../types/core';
 import { SIMULATION_RESPONSES } from '../../utils/seeds';
 import { buildUserAIPrompt, UserAISeed, UserAIBeat, UserAIMemory } from './promptBuilder';
+import { extractShortMemory, TranscriptTurn } from './memoryExtractor';
+import { pickBeatForTurn, Beat, ProfileBeatBias } from './beatScheduler';
 
 export type UserAIState = 'OPENING' | 'EXPLORING' | 'PRESSING' | 'DECIDING' | 'WRAP';
 
@@ -24,13 +26,15 @@ export interface UserAIContext {
   profile?: any; // USERAI profile data
   memory: UserAIMemory;
   currentBeat: UserAIBeat;
+  conversationTranscript: TranscriptTurn[];
+  maxTurns: number;
 }
 
 export class UserAI {
   private context: UserAIContext;
   private random: () => number;
 
-  constructor(scenario: Scenario, seed: number = Date.now(), profile?: any) {
+  constructor(scenario: Scenario, seed: number = Date.now(), profile?: any, maxTurns: number = 10) {
     this.context = {
       scenario,
       seed,
@@ -43,9 +47,11 @@ export class UserAI {
       memory: { facts: [] },
       currentBeat: {
         name: 'setup',
-        index: 0,
-        total: 8 // Default story structure
-      }
+        index: 1,
+        total: maxTurns
+      },
+      conversationTranscript: [],
+      maxTurns
     };
     
     // Simple seeded random function for reproducibility
@@ -57,8 +63,11 @@ export class UserAI {
   }
 
   // Generate the runtime prompt for this UserAI instance
-  public buildRuntimePrompt(): string | null {
+  public async buildRuntimePrompt(): Promise<string | null> {
     if (!this.context.profile) return null;
+    
+    // Update memory and beat before building prompt
+    await this.updateRuntimeContext();
     
     const seed: UserAISeed = {
       text: this.context.scenario.seed_turns[0] || "Starting conversation"
@@ -73,67 +82,56 @@ export class UserAI {
     );
   }
 
-  // Update memory with new facts from conversation
-  private updateMemory(niniResponse?: string): void {
-    if (!niniResponse) return;
-    
-    // Extract key facts from Nini's response (simple heuristic)
-    // In a real implementation, this could be more sophisticated
-    const facts = this.extractFactsFromResponse(niniResponse);
-    
-    // Add facts to memory, keeping only the last 5
-    this.context.memory.facts.push(...facts);
-    if (this.context.memory.facts.length > 5) {
-      this.context.memory.facts = this.context.memory.facts.slice(-5);
+  // Update runtime context with latest memory and beat
+  private async updateRuntimeContext(): Promise<void> {
+    // Extract short memory from transcript
+    if (this.context.conversationTranscript.length > 0) {
+      const memoryResult = await extractShortMemory(
+        this.context.conversationTranscript,
+        {
+          maxFacts: 5,
+          lang: this.context.profile?.lang || 'es',
+          usePerplexityFallback: false // Will be configurable
+        }
+      );
+      this.context.memory = { facts: memoryResult.facts };
+    }
+
+    // Update beat based on current turn
+    const beatBias = this.context.profile?.beat_bias as ProfileBeatBias | undefined;
+    const newBeat = pickBeatForTurn(
+      this.context.turnCount,
+      this.context.maxTurns,
+      beatBias
+    );
+    this.context.currentBeat = newBeat;
+  }
+
+  // Add turn to conversation transcript
+  public addTurnToTranscript(speaker: 'Nini' | 'USERAI', text: string): void {
+    this.context.conversationTranscript.push({
+      turn: this.context.conversationTranscript.length + 1,
+      speaker,
+      text
+    });
+
+    // Keep only recent turns for memory extraction
+    if (this.context.conversationTranscript.length > 20) {
+      this.context.conversationTranscript = this.context.conversationTranscript.slice(-20);
     }
   }
 
-  // Update story beat based on turn progress
-  private updateBeat(): void {
-    const { turnCount } = this.context;
-    const maxTurns = 10; // This should come from options
-    
-    // Map turns to story beats
-    const beatMap = [
-      { name: 'setup' as const, turns: [0, 1] },
-      { name: 'incident' as const, turns: [2] },
-      { name: 'tension' as const, turns: [3, 4] },
-      { name: 'midpoint' as const, turns: [5] },
-      { name: 'obstacle' as const, turns: [6, 7] },
-      { name: 'progress' as const, turns: [8] },
-      { name: 'preclose' as const, turns: [9] },
-      { name: 'close' as const, turns: [10] }
-    ];
-    
-    for (const beat of beatMap) {
-      if (beat.turns.includes(turnCount)) {
-        this.context.currentBeat = {
-          name: beat.name,
-          index: turnCount + 1,
-          total: maxTurns
-        };
-        break;
-      }
-    }
-  }
-
-  private extractFactsFromResponse(response: string): string[] {
-    const facts: string[] = [];
-    
-    // Simple fact extraction - look for key patterns
-    if (response.includes('crisis') || response.includes('seguridad')) {
-      facts.push('Protocolo de crisis activado');
-    }
-    
-    if (response.includes('plan') || response.includes('paso')) {
-      facts.push('Plan de acción discutido');
-    }
-    
-    if (response.includes('A)') && response.includes('B)')) {
-      facts.push('Opciones A/B presentadas');
-    }
-    
-    return facts;
+  // Get current runtime debug info
+  public getRuntimeDebugInfo(): {
+    beat: Beat;
+    memory: UserAIMemory;
+    transcript: TranscriptTurn[];
+  } {
+    return {
+      beat: this.context.currentBeat,
+      memory: this.context.memory,
+      transcript: this.context.conversationTranscript
+    };
   }
   // Generate next user response based on Nini's last response
   generateNext(niniResponse?: string): Turn | null {
@@ -149,8 +147,11 @@ export class UserAI {
 
     // Update context based on Nini's response
     this.updateContextFromNini(niniResponse);
-    this.updateMemory(niniResponse);
-    this.updateBeat();
+    
+    // Add Nini's response to transcript for memory extraction
+    if (niniResponse) {
+      this.addTurnToTranscript('Nini', niniResponse);
+    }
     
     // Select intention for this turn
     const intention = this.selectIntention(niniResponse);
@@ -161,6 +162,9 @@ export class UserAI {
     // Update turn count and state
     this.context.turnCount++;
     this.updateState();
+    
+    // Add user response to transcript
+    this.addTurnToTranscript('USERAI', response);
     
     return {
       agent: 'user',
@@ -617,6 +621,6 @@ export class UserAI {
 }
 
 // Factory function for creating UserAI instances
-export function createUserAI(scenario: Scenario, seed: number = Date.now(), profile?: any): UserAI {
-  return new UserAI(scenario, seed, profile);
+export function createUserAI(scenario: Scenario, seed: number = Date.now(), profile?: any, maxTurns: number = 10): UserAI {
+  return new UserAI(scenario, seed, profile, maxTurns);
 }

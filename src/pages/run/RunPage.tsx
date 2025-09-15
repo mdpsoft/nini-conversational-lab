@@ -15,6 +15,7 @@ import { useRunsStore } from "../../store/runs";
 import { RunOptions } from "../../types/core";
 import { ChatViewer } from "../../components/ChatViewer";
 import { LintBadge } from "../../components/LintBadge";
+import { RuntimeDebugPanel } from "../../components/RuntimeDebugPanel";
 import { Runner } from "../../core/runner/Runner";
 import { QUICK_DEMO_CONFIG } from "../../utils/seeds";
 import { buildSystemPrompt } from "../../core/nini/prompt";
@@ -64,6 +65,7 @@ export default function RunPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [selectedProfileIds, setSelectedProfileIds] = useState<string[]>([]);
   const [runMode, setRunMode] = useState<RunMode>("single");
+  const [showRuntimeDebug, setShowRuntimeDebug] = useState(false);
 
   const selectedScenarios = scenarios.filter(s => selectedIds.includes(s.id));
 
@@ -604,12 +606,23 @@ export default function RunPage() {
                   
                   {/* Debug info for runtime prompts */}
                   {(currentConversation as any).userAI?.profileId && (
-                    <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded border">
-                      <div className="font-medium mb-1">USERAI Runtime Context:</div>
-                      <div>Profile: {(currentConversation as any).userAI.profileId}</div>
-                      <div>Language: {(currentConversation as any).userAI.lang}</div>
-                      <div>Question Rate: {(currentConversation as any).userAI.question_rate?.min}-{(currentConversation as any).userAI.question_rate?.max}</div>
-                      <div>Verbosity: {(currentConversation as any).userAI.verbosity?.paragraphs}</div>
+                    <div className="space-y-2">
+                      <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded border">
+                        <div className="font-medium mb-1">USERAI Runtime Context:</div>
+                        <div>Profile: {(currentConversation as any).userAI.profileId}</div>
+                        <div>Language: {(currentConversation as any).userAI.lang}</div>
+                        <div>Question Rate: {(currentConversation as any).userAI.question_rate?.min}-{(currentConversation as any).userAI.question_rate?.max}</div>
+                        <div>Verbosity: {(currentConversation as any).userAI.verbosity?.paragraphs}</div>
+                      </div>
+
+                      {/* Runtime Debug Panel */}
+                      <RuntimeDebugPanel
+                        beat={(currentConversation as any).runtime_debug?.beat}
+                        memory={(currentConversation as any).runtime_debug?.memory}
+                        transcript={(currentConversation as any).runtime_debug?.transcript}
+                        isVisible={showRuntimeDebug}
+                        onToggle={setShowRuntimeDebug}
+                      />
                     </div>
                   )}
                   
