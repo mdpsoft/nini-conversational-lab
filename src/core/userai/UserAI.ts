@@ -489,8 +489,13 @@ export class UserAI {
   private applyLanguageMixing(text: string): string {
     const { language } = this.context.scenario;
     
-    if (language === 'mix' && this.random() < 0.3) {
-      // Simple code-switching
+    // Respect single-locale policy - only mix if explicitly set to 'mix'
+    if (language !== 'mix') {
+      return text; // No mixing for 'es' or 'en' scenarios
+    }
+    
+    if (this.random() < 0.3) {
+      // Simple code-switching only in 'mix' scenarios
       const mixPhrases = {
         'me siento': 'feel',
         'no entiendo': "don't understand",
@@ -498,11 +503,12 @@ export class UserAI {
         'muy': 'very',
       };
       
-      Object.entries(mixPhrases).forEach(([spanish, english]) => {
+      for (const [spanish, english] of Object.entries(mixPhrases)) {
         if (text.includes(spanish) && this.random() < 0.5) {
           text = text.replace(spanish, english);
+          break; // Only one replacement per response
         }
-      });
+      }
     }
     
     return text;

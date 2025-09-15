@@ -207,15 +207,24 @@ export default function ResultsPage() {
         {/* Run Summary Cards */}
         {currentRun && (
           <div className="space-y-4">
-            <SummaryCard
-              title="Run Summary"
-              text={generateRunSummary(currentRun as any)}
-            />
-            
-            <SummaryCard
-              title="Score Explanation"
-              text={explainScores()}
-            />
+            {(currentRun as any).summaryMD ? (
+              <SummaryCard
+                title="Run Summary"
+                text={(currentRun as any).summaryMD}
+              />
+            ) : (
+              <>
+                <SummaryCard
+                  title="Run Summary"
+                  text={generateRunSummary(currentRun as any)}
+                />
+                
+                <SummaryCard
+                  title="Score Explanation"
+                  text={explainScores()}
+                />
+              </>
+            )}
           </div>
         )}
 
@@ -536,11 +545,18 @@ export default function ResultsPage() {
                     </section>
                   )}
 
-                  {/* Conversation Summary */}
-                  <SummaryCard
-                    title="Conversation Summary"
-                    text={generateConversationSummary(selectedConversation)}
-                  />
+                  {/* Conversation Summary MD */}
+                  {(selectedConversation as any).summaryMD ? (
+                    <SummaryCard
+                      title="Conversation Analysis"
+                      text={(selectedConversation as any).summaryMD}
+                    />
+                  ) : (
+                    <SummaryCard
+                      title="Conversation Summary"
+                      text={generateConversationSummary(selectedConversation)}
+                    />
+                  )}
 
                   {/* Lint Results */}
                   <section className="rounded-lg border bg-card p-4">
