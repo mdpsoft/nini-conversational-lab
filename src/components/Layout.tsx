@@ -1,61 +1,24 @@
-import { Settings, FileText, Play, BarChart3, Moon, Sun, FolderArchive, Bug, User, TrendingUp, Database } from "lucide-react";
-import { NavLink, useLocation, Outlet } from "react-router-dom";
+import { Moon, Sun } from "lucide-react";
+import { Outlet } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useSettingsStore } from "../store/settings";
 import { SupabaseStatus } from "@/components/SupabaseStatus";
-
-const navigationItems = [
-  { title: "Settings", url: "/settings", icon: Settings },
-  { title: "Scenarios", url: "/scenarios", icon: FileText },
-  { title: "Run", url: "/run", icon: Play },
-  { title: "Results", url: "/results", icon: BarChart3 },
-  { title: "Batch Report", url: "/batch-report", icon: TrendingUp },
-  { title: "Repository", url: "/repository", icon: FolderArchive },
-  { title: "LLM Logs", url: "/llm-logs", icon: Bug },
-  { title: "USERAI Profiles", url: "/profiles", icon: User },
-  { title: "Supabase SQL", url: "/supabase-sql", icon: Database },
-  { title: "Supabase SQL – Phase 2", url: "/supabase-sql-phase2", icon: Database },
-  { title: "Supabase Validator", url: "/supabase-validate", icon: Settings },
-];
+import { CollapsibleNav } from "./CollapsibleNav";
 
 function AppSidebar() {
-  const location = useLocation();
-  const currentPath = location.pathname;
-
-  const isActive = (path: string) => currentPath === path;
-
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Nini Test Bench</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navigationItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <NavLink to={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <div className="p-4 border-b">
+          <h2 className="font-semibold text-sidebar-foreground">Nini Test Bench</h2>
+        </div>
+        <CollapsibleNav />
       </SidebarContent>
     </Sidebar>
   );

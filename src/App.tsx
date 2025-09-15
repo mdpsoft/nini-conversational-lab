@@ -9,10 +9,16 @@ import SettingsPage from "./pages/settings/SettingsPage";
 import ScenariosPage from "./pages/scenarios/ScenariosPage";
 import RunPage from "./pages/run/RunPage";
 import ResultsPage from "./pages/results/ResultsPage";
+import ConversationsPage from "./pages/results/ConversationsPage";
+import RunDetailsPage from "./pages/results/RunDetailsPage";
 import BatchRunReportPage from "./pages/batch-report/BatchRunReportPage";
 import RunRepositoryPage from "./pages/repository/RunRepositoryPage";
 import LLMLogsPage from "./pages/llm-logs/LLMLogsPage";
 import ProfilesPage from "./pages/profiles/ProfilesPage";
+import CompareProfilesPage from "./pages/profiles/CompareProfilesPage";
+import SavedViewsPage from "./pages/settings/SavedViewsPage";
+import EnvironmentPage from "./pages/settings/EnvironmentPage";
+import LLMErrorInspectorPage from "./pages/debug/LLMErrorInspectorPage";
 import SupabaseSQLPage from "./pages/SupabaseSQLPage";
 import SupabaseValidatorPage from "./pages/SupabaseValidatorPage";
 import SupabaseSQLPhase2Page from "./pages/SupabaseSQLPhase2Page";
@@ -44,13 +50,18 @@ const App = () => {
           <Routes>
             <Route path="/" element={<Layout />}>
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="settings/env" element={<EnvironmentPage />} />
               <Route path="scenarios" element={<ScenariosPage />} />
               <Route path="run" element={<RunPage />} />
-              <Route path="results" element={<ResultsPage />} />
+              <Route path="results" element={<ConversationsPage />} />
+              <Route path="results/:runId" element={<RunDetailsPage />} />
               <Route path="batch-report" element={<BatchRunReportPage />} />
               <Route path="repository" element={<RunRepositoryPage />} />
               <Route path="llm-logs" element={<LLMLogsPage />} />
+              <Route path="llm-error-inspector" element={<LLMErrorInspectorPage />} />
               <Route path="profiles" element={<ProfilesPage />} />
+              <Route path="profiles/compare" element={<CompareProfilesPage />} />
+              <Route path="saved-views" element={<SavedViewsPage />} />
               <Route path="supabase-sql" element={<SupabaseSQLPage />} />
               <Route path="supabase-validate" element={<SupabaseValidatorPage />} />
               <Route path="supabase-sql-phase2" element={<SupabaseSQLPhase2Page />} />
