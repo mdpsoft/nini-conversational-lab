@@ -3,19 +3,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useProfilesStore, UserAIProfile } from "@/store/profiles";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { ProfileEditor } from "./ProfileEditor";
 
-function ProfileCard({ profile }: { profile: UserAIProfile }) {
+function ProfileCard({ profile, onEdit }: { profile: UserAIProfile; onEdit: (id: string) => void }) {
   const { deleteProfile, duplicateProfile } = useProfilesStore();
 
   const handleView = () => {
-    // TODO: Implement view dialog
-    console.log("View profile:", profile.id);
+    onEdit(profile.id);
   };
 
   const handleEdit = () => {
-    // TODO: Implement edit dialog
-    console.log("Edit profile:", profile.id);
+    onEdit(profile.id);
   };
 
   const handleDuplicate = () => {
@@ -61,7 +60,7 @@ function ProfileCard({ profile }: { profile: UserAIProfile }) {
           <div className="text-sm text-muted-foreground">
             <div>Estilo: {profile.attachment_style}</div>
             <div>Idioma: {profile.lang.toUpperCase()}</div>
-            <div>Verbosidad: {profile.verbosity}/10</div>
+            <div>Verbosidad: {profile.verbosity.paragraphs}</div>
           </div>
 
           <div className="flex gap-2 pt-2">
@@ -106,18 +105,35 @@ function ProfileCard({ profile }: { profile: UserAIProfile }) {
 }
 
 function ProfilesPage() {
-  const { profiles, initializeMockData } = useProfilesStore();
+  const { profiles, initializeMockData, loadFromStorage } = useProfilesStore();
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
 
   useEffect(() => {
-    // Initialize with mock data if no profiles exist
-    if (profiles.length === 0) {
-      initializeMockData();
-    }
-  }, [profiles.length, initializeMockData]);
+    // Load from storage first
+    loadFromStorage();
+    
+    // If no profiles exist after loading, initialize with mock data
+    setTimeout(() => {
+      if (profiles.length === 0) {
+        initializeMockData();
+      }
+    }, 0);
+  }, [loadFromStorage, initializeMockData]);
 
   const handleNewProfile = () => {
-    // TODO: Implement new profile dialog
-    console.log("Create new profile");
+    setEditingProfileId(null);
+    setIsEditorOpen(true);
+  };
+
+  const handleEditProfile = (profileId: string) => {
+    setEditingProfileId(profileId);
+    setIsEditorOpen(true);
+  };
+
+  const handleCloseEditor = () => {
+    setIsEditorOpen(false);
+    setEditingProfileId(null);
   };
 
   return (
@@ -151,10 +167,16 @@ function ProfilesPage() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {profiles.map((profile) => (
-            <ProfileCard key={profile.id} profile={profile} />
+            <ProfileCard key={profile.id} profile={profile} onEdit={handleEditProfile} />
           ))}
         </div>
       )}
+
+      <ProfileEditor
+        profileId={editingProfileId || undefined}
+        isOpen={isEditorOpen}
+        onClose={handleCloseEditor}
+      />
     </div>
   );
 }
