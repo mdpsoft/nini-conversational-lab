@@ -1,4 +1,4 @@
-import { Settings, FileText, Play, BarChart3, Moon, Sun, FolderArchive, Bug } from "lucide-react";
+import { Settings, FileText, Play, BarChart3, Moon, Sun, FolderArchive, Bug, User } from "lucide-react";
 import { NavLink, useLocation, Outlet } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +22,7 @@ const navigationItems = [
   { title: "Results", url: "/results", icon: BarChart3 },
   { title: "Repository", url: "/repository", icon: FolderArchive },
   { title: "LLM Logs", url: "/llm-logs", icon: Bug },
+  { title: "USERAI Profiles", url: "/profiles", icon: User },
 ];
 
 function AppSidebar() {
