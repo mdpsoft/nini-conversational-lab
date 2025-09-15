@@ -31,6 +31,7 @@ export interface UserAIProfile {
 
 interface ProfilesStore {
   profiles: UserAIProfile[];
+  selectedProfileIds: string[];
   addProfile: (profile: UserAIProfile) => void;
   updateProfile: (id: string, profile: Partial<UserAIProfile>) => void;
   deleteProfile: (id: string) => void;
@@ -38,6 +39,10 @@ interface ProfilesStore {
   initializeMockData: () => void;
   loadFromStorage: () => void;
   saveToStorage: () => void;
+  setSelectedProfiles: (ids: string[]) => void;
+  toggleProfileSelection: (id: string) => void;
+  clearSelection: () => void;
+  importProfiles: (profiles: UserAIProfile[]) => void;
 }
 
 // Mock data
@@ -144,6 +149,7 @@ const STORAGE_KEY = 'userai_profiles';
 
 export const useProfilesStore = create<ProfilesStore>((set, get) => ({
   profiles: [],
+  selectedProfileIds: [],
   
   addProfile: (profile) => {
     set((state) => ({ 
@@ -163,7 +169,8 @@ export const useProfilesStore = create<ProfilesStore>((set, get) => ({
   
   deleteProfile: (id) => {
     set((state) => ({
-      profiles: state.profiles.filter(profile => profile.id !== id)
+      profiles: state.profiles.filter(profile => profile.id !== id),
+      selectedProfileIds: state.selectedProfileIds.filter(selectedId => selectedId !== id)
     }));
     get().saveToStorage();
   },
@@ -211,5 +218,28 @@ export const useProfilesStore = create<ProfilesStore>((set, get) => ({
     } catch (error) {
       console.error('Error saving profiles to storage:', error);
     }
+  },
+
+  setSelectedProfiles: (ids) => {
+    set({ selectedProfileIds: ids });
+  },
+
+  toggleProfileSelection: (id) => {
+    set((state) => ({
+      selectedProfileIds: state.selectedProfileIds.includes(id)
+        ? state.selectedProfileIds.filter(selectedId => selectedId !== id)
+        : [...state.selectedProfileIds, id]
+    }));
+  },
+
+  clearSelection: () => {
+    set({ selectedProfileIds: [] });
+  },
+
+  importProfiles: (newProfiles) => {
+    set((state) => ({
+      profiles: [...state.profiles, ...newProfiles]
+    }));
+    get().saveToStorage();
   },
 }));
