@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 
 export interface RepositoryFilters {
   query: string;
-  status: "" | "completed" | "failed" | "aborted";
+  status: "" | "all" | "completed" | "failed" | "aborted";
   hideArchived: boolean;
   dateRange?: { start: string; end: string };
   approvalRateMin?: number;
@@ -40,7 +40,7 @@ export const useViewsStore = create<ViewsState>()(
           name: "All Runs",
           filters: {
             query: "",
-            status: "",
+            status: "all",
             hideArchived: false,
           },
           createdAt: new Date().toISOString(),

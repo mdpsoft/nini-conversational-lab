@@ -40,7 +40,7 @@ export default function RunRepositoryPage() {
   // Filter state
   const [filters, setFilters] = useState<RepositoryFilters>({
     query: "",
-    status: "",
+    status: "all",
     hideArchived: true,
   });
   
@@ -73,7 +73,7 @@ export default function RunRepositoryPage() {
         if (filters.hideArchived && r.repo?.archived) return false;
         
         // Status filter
-        if (filters.status && r.status !== filters.status) return false;
+        if (filters.status && filters.status !== "all" && r.status !== filters.status) return false;
         
         // Query filter
         if (filters.query) {
@@ -191,7 +191,7 @@ export default function RunRepositoryPage() {
   const handleClearFilters = () => {
     setFilters({
       query: "",
-      status: "",
+      status: "all",
       hideArchived: true,
     });
     setDateFrom(undefined);
@@ -381,12 +381,12 @@ export default function RunRepositoryPage() {
           className="w-[300px]" 
         />
         
-        <Select value={filters.status} onValueChange={value => updateFilters({ status: value as any })}>
+        <Select value={filters.status || "all"} onValueChange={value => updateFilters({ status: value === "all" ? "all" : value as any })}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent className="bg-background border border-border shadow-lg z-50">
-            <SelectItem value="">All statuses</SelectItem>
+            <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
             <SelectItem value="failed">Failed</SelectItem>
             <SelectItem value="aborted">Aborted</SelectItem>
