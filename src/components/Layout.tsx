@@ -1,4 +1,4 @@
-import { Settings, FileText, Play, BarChart3, Moon, Sun, FolderArchive, Bug, User, TrendingUp } from "lucide-react";
+import { Settings, FileText, Play, BarChart3, Moon, Sun, FolderArchive, Bug, User, TrendingUp, Database } from "lucide-react";
 import { NavLink, useLocation, Outlet } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useSettingsStore } from "../store/settings";
+import { SupabaseStatus } from "@/components/SupabaseStatus";
 
 const navigationItems = [
   { title: "Settings", url: "/settings", icon: Settings },
@@ -24,6 +25,7 @@ const navigationItems = [
   { title: "Repository", url: "/repository", icon: FolderArchive },
   { title: "LLM Logs", url: "/llm-logs", icon: Bug },
   { title: "USERAI Profiles", url: "/profiles", icon: User },
+  { title: "Supabase SQL", url: "/supabase-sql", icon: Database },
 ];
 
 function AppSidebar() {
@@ -72,13 +74,16 @@ function Layout() {
               <h1 className="text-lg font-semibold">Nini Test Bench</h1>
             </div>
             
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setDarkMode(!darkMode)}
-            >
-              {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </Button>
+            <div className="flex items-center gap-4">
+              <SupabaseStatus />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDarkMode(!darkMode)}
+              >
+                {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
+            </div>
           </header>
           
           <main className="flex-1 p-6 bg-background">

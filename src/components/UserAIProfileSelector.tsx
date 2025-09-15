@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useProfilesStore, UserAIProfile } from "@/store/profiles";
+import { UserAIProfile } from "@/store/profiles";
 import { useNavigate } from "react-router-dom";
+import { useProfilesRepo } from "@/hooks/useProfilesRepo";
 
 export type RunMode = "single" | "batch";
 
@@ -27,14 +28,10 @@ export function UserAIProfileSelector({
   onRunModeChange,
   disabled = false
 }: UserAIProfileSelectorProps) {
-  const { profiles, loadFromStorage } = useProfilesStore();
+  const { profiles, dataSource, loading } = useProfilesRepo();
   const [searchQuery, setSearchQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    loadFromStorage();
-  }, [loadFromStorage]);
 
   const filteredProfiles = profiles.filter(profile =>
     profile.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -69,6 +66,19 @@ export function UserAIProfileSelector({
     navigate("/profiles");
   };
 
+  if (loading) {
+    return (
+      <Card className="p-6 text-center border-dashed">
+        <CardContent className="space-y-4">
+          <div className="text-muted-foreground">
+            <User className="w-8 h-8 mx-auto mb-2 opacity-50 animate-pulse" />
+            <p className="text-sm">Loading profiles...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (profiles.length === 0) {
     return (
       <Card className="p-6 text-center border-dashed">
@@ -89,7 +99,12 @@ export function UserAIProfileSelector({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium">USERAI Profile(s)</Label>
+        <Label className="text-sm font-medium">
+          USERAI Profile(s) 
+          <Badge variant="outline" className="ml-2 text-xs">
+            {dataSource}
+          </Badge>
+        </Label>
         <div className="flex items-center gap-2">
           <Label htmlFor="run-mode" className="text-xs text-muted-foreground">Run mode:</Label>
           <Select
