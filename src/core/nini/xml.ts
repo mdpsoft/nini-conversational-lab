@@ -247,7 +247,7 @@ export function convertLegacyKnobsToStandard(xmlSystemSpec: string): string {
     const numericKeys = [
       'empathy', 'mirroring_intensity', 'humor', 'probing_rate',
       'uncertainty_threshold', 'clarification_threshold', 'bias_confirmation_soft',
-      'directiveness', 'gentleness', 'colloquiality', 'emoji_bias'
+      'directiveness', 'gentleness', 'colloquiality', 'emoji_bias', 'affection_level'
     ];
     const integerKeys = ['ask_rate_min_turns', 'ask_rate_max_turns', 'max_chars_per_message'];
     const booleanKeys = ['crisis_mode_enabled'];

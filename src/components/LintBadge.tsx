@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { LintFinding } from "../types/core";
 import { CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { LINT_EXPLANATIONS } from "@/constants/lintExplanations";
 
 interface LintBadgeProps {
   finding: LintFinding;
@@ -9,34 +10,9 @@ interface LintBadgeProps {
 }
 
 export function LintBadge({ finding, className }: LintBadgeProps) {
-  const HINTS: Record<string, string> = {
-    CRISIS_MISSED: "Señales de crisis no gestionadas.",
-    CRISIS_SUPPRESSION: "Se intentó usar CTA/estilo prohibido en crisis.",
-    PHASE_UNKNOWN: "El turno no mapea a una fase conocida.",
-    PHASE_ORDER: "Orden de fases no respetado.",
-    PHASE_QUESTION_LEN: "Pregunta supera longitud máxima.",
-    LENGTH_MAX: "Mensaje muy largo.",
-    EMOJI_FORBIDDEN_SET: "Emoji fuera del set permitido.",
-    EVIDENCE_MISSING: "Se citó evidencia sin respaldo.",
-    DIAGNOSIS: "Se proporcionó diagnóstico médico/psicológico.",
-    LEGAL_MEDICAL_ADVICE: "Se dio consejo médico/legal específico.",
-    CTA_INELIGIBLE: "CTA usado en contexto no apropiado.",
-    CTA_DURING_CRISIS: "CTA usado durante modo crisis."
-  };
 
   const getSeverity = (code: string): 'low' | 'medium' | 'high' => {
-    const highSeverityCodes = [
-      'CRISIS_MISSED', 'CRISIS_FALSE_POSITIVE', 'CRISIS_SUPPRESSION',
-      'DIAGNOSIS', 'LEGAL_MEDICAL_ADVICE'
-    ];
-    const mediumSeverityCodes = [
-      'PHASE_ORDER', 'PHASE_UNKNOWN', 'CTA_INELIGIBLE', 'CTA_DURING_CRISIS',
-      'EVIDENCE_MISSING'
-    ];
-    
-    if (highSeverityCodes.includes(code)) return 'high';
-    if (mediumSeverityCodes.includes(code)) return 'medium';
-    return 'low';
+    return LINT_EXPLANATIONS[code]?.severity || 'low';
   };
 
   const getVariant = (severity: string, pass: boolean) => {
@@ -71,15 +47,25 @@ export function LintBadge({ finding, className }: LintBadgeProps) {
         </Badge>
       </TooltipTrigger>
       <TooltipContent>
-        <div className="max-w-xs">
-          <div className="font-medium">{finding.code}</div>
+        <div className="max-w-sm">
+          <div className="font-medium">{LINT_EXPLANATIONS[finding.code]?.title || finding.code}</div>
           <div className="text-xs opacity-90 mt-1">
-            {HINTS[finding.code] ?? "Hallazgo de lint"}
+            {LINT_EXPLANATIONS[finding.code]?.why || "Hallazgo de lint"}
           </div>
-          {finding.details && (
-            <div className="text-xs opacity-75 mt-1">{finding.details}</div>
+          {LINT_EXPLANATIONS[finding.code]?.howToFix && (
+            <div className="text-xs opacity-80 mt-2">
+              <strong>Cómo arreglar:</strong>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                {LINT_EXPLANATIONS[finding.code].howToFix.map((fix, i) => (
+                  <li key={i}>{fix}</li>
+                ))}
+              </ul>
+            </div>
           )}
-          <div className="text-xs mt-1 opacity-75">
+          {finding.details && (
+            <div className="text-xs opacity-75 mt-2 italic">{finding.details}</div>
+          )}
+          <div className="text-xs mt-2 opacity-75 border-t pt-1">
             Severidad: {severity} | Estado: {finding.pass ? 'Pasa' : 'Falla'}
           </div>
         </div>

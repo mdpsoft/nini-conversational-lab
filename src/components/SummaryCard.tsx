@@ -3,88 +3,12 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Button } from "@/components/ui/button"
 import { ChevronDown, ChevronUp } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useState } from "react"
+import ReactMarkdown from "react-markdown"
 
-// Renderizador simple de "pseudo-markdown":
-// - Párrafos separados por \n
-// - Viñetas si la línea empieza con "- "
-// - Headers si empieza con "## " o "### "
-// - Bold si está entre **texto**
-function renderRich(text: string) {
-  const lines = text.split("\n").map(l => l.trim()).filter(l => l)
-  const blocks: Array<JSX.Element> = []
-  let buffer: string[] = []
-  let list: string[] = []
-
-  const flushP = () => {
-    if (buffer.length) {
-      const content = buffer.join(" ")
-      const rendered = renderInlineMarkdown(content)
-      blocks.push(
-        <p key={`p-${blocks.length}`} className="text-sm text-muted-foreground leading-6">
-          {rendered}
-        </p>
-      )
-      buffer = []
-    }
-  }
-  
-  const flushList = () => {
-    if (list.length) {
-      blocks.push(
-        <ul key={`ul-${blocks.length}`} className="list-disc pl-6 text-sm text-muted-foreground space-y-1">
-          {list.map((item, i) => (
-            <li key={i}>{renderInlineMarkdown(item)}</li>
-          ))}
-        </ul>
-      )
-      list = []
-    }
-  }
-
-  const renderInlineMarkdown = (text: string) => {
-    // Simple bold rendering **text** -> <strong>text</strong>
-    const parts = text.split(/(\*\*[^*]+\*\*)/g)
-    return parts.map((part, i) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return <strong key={i} className="font-semibold text-foreground">{part.slice(2, -2)}</strong>
-      }
-      return part
-    })
-  }
-
-  lines.forEach((l) => {
-    if (l.startsWith("## ")) {
-      flushP(); flushList()
-      blocks.push(
-        <h2 key={`h2-${blocks.length}`} className="text-lg font-semibold text-foreground mt-6 mb-3 first:mt-0">
-          {l.slice(3)}
-        </h2>
-      )
-    } else if (l.startsWith("### ")) {
-      flushP(); flushList()
-      blocks.push(
-        <h3 key={`h3-${blocks.length}`} className="text-base font-medium text-foreground mt-4 mb-2">
-          {l.slice(4)}
-        </h3>
-      )
-    } else if (l.startsWith("- ")) {
-      flushP()
-      list.push(l.slice(2))
-    } else if (l === "") {
-      flushP(); flushList()
-    } else {
-      flushList()
-      buffer.push(l)
-    }
-  })
-  flushP(); flushList()
-  return blocks
-}
 
 export function SummaryCard({ title, text }: { title: string; text: string }) {
   const [open, setOpen] = useState(true)
-  const rich = useMemo(() => renderRich(text), [text])
 
   return (
     <Card className="mt-4">
@@ -101,8 +25,20 @@ export function SummaryCard({ title, text }: { title: string; text: string }) {
           </div>
         </CardHeader>
         <CollapsibleContent asChild>
-          <CardContent className="prose prose-sm max-w-none pt-1 space-y-3">
-            {rich}
+          <CardContent className="prose prose-sm max-w-none pt-1">
+            <ReactMarkdown 
+              components={{
+                h2: ({ children }) => <h2 className="text-lg font-semibold text-foreground mt-6 mb-3 first:mt-0">{children}</h2>,
+                h3: ({ children }) => <h3 className="text-base font-medium text-foreground mt-4 mb-2">{children}</h3>,
+                p: ({ children }) => <p className="text-sm text-muted-foreground leading-6 mb-3">{children}</p>,
+                ul: ({ children }) => <ul className="list-disc pl-6 text-sm text-muted-foreground space-y-1 mb-3">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal pl-6 text-sm text-muted-foreground space-y-1 mb-3">{children}</ol>,
+                strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+                code: ({ children }) => <code className="bg-muted px-1 py-0.5 rounded text-xs">{children}</code>
+              }}
+            >
+              {text}
+            </ReactMarkdown>
           </CardContent>
         </CollapsibleContent>
       </Collapsible>

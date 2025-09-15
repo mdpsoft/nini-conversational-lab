@@ -11,7 +11,7 @@ import { Eye, EyeOff, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { useSettingsStore } from "../../store/settings";
 import { XmlEditor } from "../../components/XmlEditor";
 import { DEFAULT_KNOBS } from "../../types/core";
-import { createMinimalXml, validateXmlSyntax, extractKnobsFromXml, convertLegacyKnobsToStandard } from "../../core/nini/xml";
+import { createMinimalXml, validateXmlSyntax, extractKnobsFromXml, convertLegacyKnobsToStandard, insertKnobsIntoXml } from "../../core/nini/xml";
 import NiniAdapter from "../../core/nini/NiniAdapter";
 import { useToast } from "@/hooks/use-toast";
 
@@ -145,6 +145,45 @@ export default function SettingsPage() {
       toast({
         title: "No knobs found",
         description: "No <Knobs> element found in the XML or no valid knob values detected.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleApplyFromXml = () => {
+    const extractedKnobs = extractKnobsFromXml(xmlSystemSpec);
+    const cleanKnobs = Object.fromEntries(
+      Object.entries(extractedKnobs).filter(([_, value]) => value !== undefined)
+    );
+    
+    if (Object.keys(cleanKnobs).length > 0) {
+      setKnobsBase({ ...knobsBase, ...cleanKnobs });
+      toast({
+        title: "Knobs applied from XML",
+        description: `Applied ${Object.keys(cleanKnobs).length} knobs from XML to current configuration.`,
+      });
+    } else {
+      toast({
+        title: "No knobs found",
+        description: "No valid knobs found in XML to apply.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleWriteKnobsToXml = () => {
+    try {
+      const updatedXml = insertKnobsIntoXml(xmlSystemSpec, knobsBase);
+      setXmlSystemSpec(updatedXml);
+      
+      toast({
+        title: "Knobs written to XML",
+        description: "Current knobs configuration has been written to the XML specification.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error writing knobs",
+        description: error instanceof Error ? error.message : "Failed to write knobs to XML",
         variant: "destructive",
       });
     }
@@ -306,28 +345,66 @@ export default function SettingsPage() {
                 onChange={setXmlSystemSpec}
                 placeholder="Enter your XML system specification..."
               />
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={handleValidateXml}
-                  className="flex-1"
-                >
-                  Validate XML
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={handleLoadKnobsFromXml}
-                  className="flex-1"
-                >
-                  Load knobs from XML
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={handleConvertXmlKnobs}
-                  className="flex-1"
-                >
-                  Convert XML Knobs
-                </Button>
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleValidateXml}
+                    className="flex-1"
+                  >
+                    Validate XML
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleLoadKnobsFromXml}
+                    className="flex-1"
+                  >
+                    Load knobs from XML
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleConvertXmlKnobs}
+                    className="flex-1"
+                  >
+                    Convert XML Knobs
+                  </Button>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button 
+                    variant="secondary" 
+                    onClick={handleApplyFromXml}
+                    className="flex-1"
+                  >
+                    Apply from XML
+                  </Button>
+                  <Button 
+                    variant="secondary" 
+                    onClick={handleWriteKnobsToXml}
+                    className="flex-1"
+                  >
+                    Write Knobs to XML
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Language & Lexicon</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-muted-foreground">Language policy</Label>
+                <span className="text-sm">App UI locale</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-muted-foreground">Lexicon policy</Label>
+                <span className="text-sm">English-only display</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-muted-foreground">Mix-language prevention</Label>
+                <Badge variant="secondary">Enabled</Badge>
               </div>
             </CardContent>
           </Card>

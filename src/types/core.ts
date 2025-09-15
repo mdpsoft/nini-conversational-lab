@@ -33,6 +33,7 @@ export interface Knobs {
   crisis_mode_enabled: boolean;
   language_strictness?: number; // [0..1]
   prefer_locale?: 'es' | 'en' | 'auto';
+  affection_level: number; // [0..1]
 }
 
 export interface Scenario {
@@ -117,6 +118,7 @@ export const KnobsSchema = z.object({
   crisis_mode_enabled: z.boolean(),
   language_strictness: z.number().min(0).max(1).optional(),
   prefer_locale: z.enum(['es', 'en', 'auto']).optional(),
+  affection_level: z.number().min(0).max(1).default(0.5),
 });
 
 export const ScenarioSchema = z.object({
@@ -165,4 +167,5 @@ export const DEFAULT_KNOBS: Knobs = {
   crisis_mode_enabled: true,
   language_strictness: 0.9,
   prefer_locale: 'auto',
+  affection_level: 0.5,
 };
