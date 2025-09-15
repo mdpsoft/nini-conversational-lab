@@ -102,10 +102,12 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 const STORAGE_KEY = "nav_groups_state";
+const USER_COLLAPSED_KEY = "nav_user_collapsed";
 
 export function CollapsibleNav() {
   const location = useLocation();
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [userCollapsed, setUserCollapsed] = useState<Record<string, boolean>>({});
 
   // Initialize expanded state from localStorage and defaults
   useEffect(() => {
@@ -113,6 +115,8 @@ export function CollapsibleNav() {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         const savedState = saved ? JSON.parse(saved) : {};
+        const savedUserCollapsed = localStorage.getItem(USER_COLLAPSED_KEY);
+        const userCollapsedState = savedUserCollapsed ? JSON.parse(savedUserCollapsed) : {};
         
         // Merge with defaults - use saved state if exists, otherwise defaultExpanded
         const initialState = NAV_GROUPS.reduce((acc, group) => {
@@ -127,6 +131,7 @@ export function CollapsibleNav() {
         }, {} as Record<string, boolean>);
         
         setExpandedGroups(initialState);
+        setUserCollapsed(userCollapsedState);
       } catch (error) {
         console.error("Failed to load navigation state:", error);
         // Use defaults
@@ -159,7 +164,7 @@ export function CollapsibleNav() {
     };
   }, []);
 
-  // Auto-expand group containing current route
+  // Auto-expand group containing current route (but respect user intention)
   useEffect(() => {
     const currentPath = location.pathname;
     
@@ -171,7 +176,8 @@ export function CollapsibleNav() {
         return false;
       });
       
-      if (hasActiveItem && !expandedGroups[group.title]) {
+      // Only auto-expand if group is collapsed AND user hasn't manually collapsed it
+      if (hasActiveItem && !expandedGroups[group.title] && !userCollapsed[group.title]) {
         setExpandedGroups(prev => {
           const newState = { ...prev, [group.title]: true };
           localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
@@ -180,16 +186,23 @@ export function CollapsibleNav() {
         break;
       }
     }
-  }, [location.pathname, expandedGroups]);
+  }, [location.pathname, expandedGroups, userCollapsed]);
 
   const toggleGroup = (groupTitle: string) => {
     setExpandedGroups(prev => {
       const newState = { ...prev, [groupTitle]: !prev[groupTitle] };
       
+      // Track user intention when manually collapsing
+      setUserCollapsed(prevCollapsed => {
+        const newCollapsedState = { ...prevCollapsed, [groupTitle]: !newState[groupTitle] };
+        localStorage.setItem(USER_COLLAPSED_KEY, JSON.stringify(newCollapsedState));
+        return newCollapsedState;
+      });
+      
       // Find group for debug logging
       const group = NAV_GROUPS.find(g => g.title === groupTitle);
       if (group?.debug) {
-        console.debug(`[CollapsibleNav] ${groupTitle} toggle -> ${newState[groupTitle]}`);
+        console.debug(`[CollapsibleNav] ${groupTitle} toggle -> ${newState[groupTitle]} (user collapsed: ${!newState[groupTitle]})`);
       }
       
       // Persist immediately
