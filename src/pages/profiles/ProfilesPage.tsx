@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useProfilesStore, UserAIProfile } from "@/store/profiles";
 import { useEffect, useState } from "react";
 import { ProfileEditor } from "./ProfileEditor";
+import { RuntimePromptViewer } from "./RuntimePromptViewer";
 
 function ProfileCard({ profile, onEdit }: { profile: UserAIProfile; onEdit: (id: string) => void }) {
   const { deleteProfile, duplicateProfile } = useProfilesStore();
@@ -64,15 +65,7 @@ function ProfileCard({ profile, onEdit }: { profile: UserAIProfile; onEdit: (id:
           </div>
 
           <div className="flex gap-2 pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleView}
-              className="flex-1"
-            >
-              <Eye className="h-3 w-3" />
-              Ver
-            </Button>
+            <RuntimePromptViewer profile={profile} />
             <Button
               variant="outline"
               size="sm"

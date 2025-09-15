@@ -1,4 +1,5 @@
 import { Turn, Knobs } from '../../types/core';
+import { UserAI } from '../userai/UserAI';
 import { insertKnobsIntoXml } from './xml';
 import { countEmojis } from '../../utils/emoji';
 
@@ -18,6 +19,25 @@ export interface OpenAIResponse {
   };
 }
 
+interface NiniResponse {
+  success: boolean;
+  text: string;
+  meta?: any;
+  error?: string;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
+interface NiniOptions {
+  apiKey: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+}
+
 export interface NiniAdapterOptions {
   apiKey: string;
   model: string;
@@ -30,30 +50,128 @@ class NiniAdapter {
   private static readonly DEFAULT_TIMEOUT = 20000; // 20s
   private static readonly MAX_RETRIES = 2;
   private static readonly RETRY_DELAYS = [1000, 2000]; // exponential backoff
+
+  // Specialized method for USERAI turns using runtime prompt
+  static async respondAsUserAI(
+    userAI: UserAI,
+    knobs: Partial<Knobs>,
+    niniOptions: NiniOptions,
+    simulationMode: boolean = false
+  ): Promise<NiniResponse> {
+    const runtimePrompt = userAI.buildRuntimePrompt();
+    
+    if (!runtimePrompt) {
+      // Fallback to regular generation if no profile
+      return { 
+        success: true, 
+        text: "No entiendo bien, ¿podrías explicarme más?",
+        meta: { fallback: true }
+      };
+    }
+
+    if (simulationMode) {
+      return {
+        success: true,
+        text: this.getSimulatedUserAIResponse(userAI),
+        meta: { 
+          simulated: true,
+          runtime_prompt_used: true,
+          prompt_length: runtimePrompt.length
+        }
+      };
+    }
+
+    try {
+      const messages = [
+        { role: 'system', content: runtimePrompt },
+        { role: 'user', content: 'Continúa la conversación siguiendo tu perfil y el beat narrativo.' }
+      ];
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${niniOptions.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: niniOptions.model,
+          messages,
+          temperature: niniOptions.temperature,
+          max_tokens: niniOptions.maxTokens,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      return {
+        success: true,
+        text: data.choices[0].message.content,
+        meta: {
+          runtime_prompt_used: true,
+          prompt_length: runtimePrompt.length,
+          model: niniOptions.model,
+          usage: data.usage
+        }
+      };
+    } catch (error) {
+      console.error('Error in UserAI OpenAI call:', error);
+      return {
+        success: false,
+        text: 'Estoy teniendo un problema técnico para responder ahora mismo. ¿Querés que lo intentemos de nuevo en unos segundos?',
+        meta: { 
+          error: true,
+          fallback: true,
+          runtime_prompt_available: true
+        }
+      };
+    }
+  }
+
+  private static getSimulatedUserAIResponse(userAI: UserAI): string {
+    // Get contextual simulated responses based on UserAI state
+    const responses = [
+      "Eso tiene mucho sentido, gracias por explicármelo así.",
+      "No había pensado en eso antes, me ayuda mucho.",
+      "¿Podrías darme un ejemplo concreto de cómo hacer eso?",
+      "Me da un poco de miedo intentarlo, pero creo que tenés razón.",
+      "¿Y si no funciona? ¿Qué otras opciones tendría?",
+      "Perfecto, voy a intentar eso. ¿Hay algo más que debería saber?"
+    ];
+    
+    // Simple selection based on turn count for variety
+    const context = (userAI as any).context;
+    const index = context?.turnCount ? context.turnCount % responses.length : 0;
+    
+    return responses[index];
+  }
   
   static async respondWithNini(
-    xmlSystemSpec: string,
+    systemPrompt: string,
     conversationHistory: Turn[],
     knobs: Partial<Knobs>,
-    options: NiniAdapterOptions,
+    niniOptions: NiniOptions,
     simulationMode: boolean = false
-  ): Promise<OpenAIResponse> {
+  ): Promise<NiniResponse> {
     
     // Simulation mode - return stub response
-    if (simulationMode || !options.apiKey) {
+    if (simulationMode || !niniOptions.apiKey) {
       return this.generateSimulationResponse(conversationHistory, knobs);
     }
     
     try {
-      const systemMessage = insertKnobsIntoXml(xmlSystemSpec, knobs);
+      const systemMessage = insertKnobsIntoXml(systemPrompt, knobs);
       const messages = this.buildMessages(systemMessage, conversationHistory);
       
       // Estimate cost before making request
-      const estimatedCost = this.estimateCost(systemMessage, conversationHistory, options.maxTokens);
+      const estimatedCost = this.estimateCost(systemMessage, conversationHistory, niniOptions.maxTokens);
       console.log(`Estimated cost: $${estimatedCost.toFixed(4)}`);
       
       // Make API request with retries
-      const response = await this.makeRequestWithRetries(messages, options);
+      const response = await this.makeRequestWithRetries(messages, niniOptions);
       
       if (!response.success) {
         return response;
@@ -77,7 +195,7 @@ class NiniAdapter {
   private static generateSimulationResponse(
     conversationHistory: Turn[],
     knobs: Partial<Knobs>
-  ): OpenAIResponse {
+  ): NiniResponse {
     const lastUserTurn = conversationHistory
       .filter(turn => turn.agent === 'user')
       .pop();
@@ -155,8 +273,8 @@ class NiniAdapter {
   
   private static async makeRequestWithRetries(
     messages: any[],
-    options: NiniAdapterOptions
-  ): Promise<OpenAIResponse> {
+    options: NiniOptions
+  ): Promise<NiniResponse> {
     
     for (let attempt = 0; attempt <= this.MAX_RETRIES; attempt++) {
       try {
@@ -192,13 +310,13 @@ class NiniAdapter {
   
   private static async makeOpenAIRequest(
     messages: any[],
-    options: NiniAdapterOptions
-  ): Promise<OpenAIResponse> {
+    options: NiniOptions
+  ): Promise<NiniResponse> {
     
     const controller = new AbortController();
     const timeout = setTimeout(() => {
       controller.abort();
-    }, options.timeout || this.DEFAULT_TIMEOUT);
+    }, this.DEFAULT_TIMEOUT);
     
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -268,7 +386,7 @@ class NiniAdapter {
     return false;
   }
   
-  private static addTelemetry(response: OpenAIResponse): OpenAIResponse {
+  private static addTelemetry(response: NiniResponse): NiniResponse {
     if (!response.success || !response.text) return response;
     
     // Basic telemetry - will be enhanced by linters

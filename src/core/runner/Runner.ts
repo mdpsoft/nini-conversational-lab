@@ -68,9 +68,30 @@ export class Runner {
     };
 
     // Generate opening turn from UserAI
-    let userTurn = userAI.generateNext();
-    if (userTurn) {
-      conversation.turns.push(userTurn);
+    let userTurn: Turn | null = null;
+    if (userAIProfile) {
+      // Use runtime prompt for USERAI-driven conversation
+      const userAIResponse = await NiniAdapter.respondAsUserAI(
+        userAI,
+        knobsBase,
+        niniOptions,
+        simulationMode
+      );
+      
+      if (userAIResponse.success) {
+        userTurn = {
+          agent: 'user',
+          text: userAIResponse.text,
+          meta: userAIResponse.meta
+        };
+        conversation.turns.push(userTurn);
+      }
+    } else {
+      // Fallback to scenario-driven conversation
+      userTurn = userAI.generateNext();
+      if (userTurn) {
+        conversation.turns.push(userTurn);
+      }
     }
 
     // Main conversation loop
@@ -113,9 +134,31 @@ export class Runner {
           conversation.turns.push(niniTurn);
 
           // Generate next user turn
-          userTurn = userAI.generateNext(niniResponse.text);
-          if (userTurn) {
-            conversation.turns.push(userTurn);
+          if (userAIProfile) {
+            // Use runtime prompt for USERAI response
+            const userAIResponse = await NiniAdapter.respondAsUserAI(
+              userAI,
+              knobsBase,
+              niniOptions,
+              simulationMode
+            );
+            
+            if (userAIResponse.success) {
+              userTurn = {
+                agent: 'user',
+                text: userAIResponse.text,
+                meta: userAIResponse.meta
+              };
+              conversation.turns.push(userTurn);
+            } else {
+              userTurn = null; // End conversation on USERAI error
+            }
+          } else {
+            // Fallback to scenario-driven generation
+            userTurn = userAI.generateNext(niniResponse.text);
+            if (userTurn) {
+              conversation.turns.push(userTurn);
+            }
           }
         } else {
           // Handle Nini error

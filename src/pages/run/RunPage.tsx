@@ -602,6 +602,17 @@ export default function RunPage() {
                     </div>
                   </div>
                   
+                  {/* Debug info for runtime prompts */}
+                  {(currentConversation as any).userAI?.profileId && (
+                    <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded border">
+                      <div className="font-medium mb-1">USERAI Runtime Context:</div>
+                      <div>Profile: {(currentConversation as any).userAI.profileId}</div>
+                      <div>Language: {(currentConversation as any).userAI.lang}</div>
+                      <div>Question Rate: {(currentConversation as any).userAI.question_rate?.min}-{(currentConversation as any).userAI.question_rate?.max}</div>
+                      <div>Verbosity: {(currentConversation as any).userAI.verbosity?.paragraphs}</div>
+                    </div>
+                  )}
+                  
                   <ChatViewer 
                     turns={currentConversation.turns} 
                     className="max-h-96 overflow-y-auto"

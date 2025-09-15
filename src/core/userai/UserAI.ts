@@ -1,5 +1,6 @@
 import { Scenario, Turn, Knobs } from '../../types/core';
 import { SIMULATION_RESPONSES } from '../../utils/seeds';
+import { buildUserAIPrompt, UserAISeed, UserAIBeat, UserAIMemory } from './promptBuilder';
 
 export type UserAIState = 'OPENING' | 'EXPLORING' | 'PRESSING' | 'DECIDING' | 'WRAP';
 
@@ -21,6 +22,8 @@ export interface UserAIContext {
   turnsWithoutProgress: number;
   crisisModeActive: boolean;
   profile?: any; // USERAI profile data
+  memory: UserAIMemory;
+  currentBeat: UserAIBeat;
 }
 
 export class UserAI {
@@ -37,6 +40,12 @@ export class UserAI {
       turnsWithoutProgress: 0,
       crisisModeActive: false,
       profile,
+      memory: { facts: [] },
+      currentBeat: {
+        name: 'setup',
+        index: 0,
+        total: 8 // Default story structure
+      }
     };
     
     // Simple seeded random function for reproducibility
@@ -47,6 +56,85 @@ export class UserAI {
     };
   }
 
+  // Generate the runtime prompt for this UserAI instance
+  public buildRuntimePrompt(): string | null {
+    if (!this.context.profile) return null;
+    
+    const seed: UserAISeed = {
+      text: this.context.scenario.seed_turns[0] || "Starting conversation"
+    };
+    
+    return buildUserAIPrompt(
+      this.context.profile,
+      seed,
+      this.context.currentBeat,
+      this.context.memory,
+      { allowSoftLimit: true, defaultSoftLimit: 1000 }
+    );
+  }
+
+  // Update memory with new facts from conversation
+  private updateMemory(niniResponse?: string): void {
+    if (!niniResponse) return;
+    
+    // Extract key facts from Nini's response (simple heuristic)
+    // In a real implementation, this could be more sophisticated
+    const facts = this.extractFactsFromResponse(niniResponse);
+    
+    // Add facts to memory, keeping only the last 5
+    this.context.memory.facts.push(...facts);
+    if (this.context.memory.facts.length > 5) {
+      this.context.memory.facts = this.context.memory.facts.slice(-5);
+    }
+  }
+
+  // Update story beat based on turn progress
+  private updateBeat(): void {
+    const { turnCount } = this.context;
+    const maxTurns = 10; // This should come from options
+    
+    // Map turns to story beats
+    const beatMap = [
+      { name: 'setup' as const, turns: [0, 1] },
+      { name: 'incident' as const, turns: [2] },
+      { name: 'tension' as const, turns: [3, 4] },
+      { name: 'midpoint' as const, turns: [5] },
+      { name: 'obstacle' as const, turns: [6, 7] },
+      { name: 'progress' as const, turns: [8] },
+      { name: 'preclose' as const, turns: [9] },
+      { name: 'close' as const, turns: [10] }
+    ];
+    
+    for (const beat of beatMap) {
+      if (beat.turns.includes(turnCount)) {
+        this.context.currentBeat = {
+          name: beat.name,
+          index: turnCount + 1,
+          total: maxTurns
+        };
+        break;
+      }
+    }
+  }
+
+  private extractFactsFromResponse(response: string): string[] {
+    const facts: string[] = [];
+    
+    // Simple fact extraction - look for key patterns
+    if (response.includes('crisis') || response.includes('seguridad')) {
+      facts.push('Protocolo de crisis activado');
+    }
+    
+    if (response.includes('plan') || response.includes('paso')) {
+      facts.push('Plan de acción discutido');
+    }
+    
+    if (response.includes('A)') && response.includes('B)')) {
+      facts.push('Opciones A/B presentadas');
+    }
+    
+    return facts;
+  }
   // Generate next user response based on Nini's last response
   generateNext(niniResponse?: string): Turn | null {
     // First turn - use seed_turns
@@ -61,6 +149,8 @@ export class UserAI {
 
     // Update context based on Nini's response
     this.updateContextFromNini(niniResponse);
+    this.updateMemory(niniResponse);
+    this.updateBeat();
     
     // Select intention for this turn
     const intention = this.selectIntention(niniResponse);
@@ -81,6 +171,9 @@ export class UserAI {
         satisfaction_level: this.context.satisfactionLevel,
         crisis_mode_active: this.context.crisisModeActive,
         turns_without_progress: this.context.turnsWithoutProgress,
+        current_beat: this.context.currentBeat,
+        memory_facts_count: this.context.memory.facts.length,
+        runtime_prompt_available: !!this.context.profile,
       } as any,
     };
   }
