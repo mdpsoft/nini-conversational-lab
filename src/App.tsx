@@ -9,6 +9,7 @@ import SettingsPage from "./pages/settings/SettingsPage";
 import ScenariosPage from "./pages/scenarios/ScenariosPage";
 import RunPage from "./pages/run/RunPage";
 import ResultsPage from "./pages/results/ResultsPage";
+import BatchRunReportPage from "./pages/batch-report/BatchRunReportPage";
 import RunRepositoryPage from "./pages/repository/RunRepositoryPage";
 import LLMLogsPage from "./pages/llm-logs/LLMLogsPage";
 import ProfilesPage from "./pages/profiles/ProfilesPage";
@@ -43,6 +44,7 @@ const App = () => {
               <Route path="scenarios" element={<ScenariosPage />} />
               <Route path="run" element={<RunPage />} />
               <Route path="results" element={<ResultsPage />} />
+              <Route path="batch-report" element={<BatchRunReportPage />} />
               <Route path="repository" element={<RunRepositoryPage />} />
               <Route path="llm-logs" element={<LLMLogsPage />} />
               <Route path="profiles" element={<ProfilesPage />} />
