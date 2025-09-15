@@ -13,6 +13,7 @@ import BatchRunReportPage from "./pages/batch-report/BatchRunReportPage";
 import RunRepositoryPage from "./pages/repository/RunRepositoryPage";
 import LLMLogsPage from "./pages/llm-logs/LLMLogsPage";
 import ProfilesPage from "./pages/profiles/ProfilesPage";
+import SupabaseSQLPage from "./pages/SupabaseSQLPage";
 import { useSettingsStore } from "./store/settings";
 import { useScenariosStore } from "./store/scenarios";
 
@@ -48,6 +49,7 @@ const App = () => {
               <Route path="repository" element={<RunRepositoryPage />} />
               <Route path="llm-logs" element={<LLMLogsPage />} />
               <Route path="profiles" element={<ProfilesPage />} />
+              <Route path="supabase-sql" element={<SupabaseSQLPage />} />
               <Route 
                 index
                 element={
