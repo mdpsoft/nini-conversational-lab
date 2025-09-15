@@ -1,429 +1,501 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Copy, Play } from "lucide-react";
-import { useSettingsStore } from "@/store/settings";
+import { Label } from "@/components/ui/label";
+import { Radio, Pause, ArrowDown, Eye, Filter, RefreshCw } from "lucide-react";
+import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
+import { subscribeLogs } from "@/lib/realtime";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 
-interface LLMTestResult {
-  summary: {
-    status: string;
-    code?: number;
-    message: string;
-    durationMs: number;
-    model: string;
-    promptChars: number;
-    inputTokensEstimate: number;
-    simulated: boolean;
-  };
-  request: {
-    model: string;
-    messages: Array<{ role: string; content: string }>;
-    temperature: number;
-    top_p: number;
-    max_completion_tokens?: number;
-  };
-  response?: {
-    success: boolean;
-    data?: any;
-    error?: {
-      status?: number;
-      headers?: any;
-      body?: any;
-      message?: string;
-      stack?: string;
-    };
-  };
+interface EventRow {
+  id: number;
+  ts: string;
+  level: string;
+  type: string;
+  severity?: string;
+  trace_id?: string;
+  run_id?: string;
+  turn_index?: number;
+  scenario_id?: string;
+  profile_id?: string;
+  meta?: any;
+  state: string;
+  tags?: string[];
+  isNew?: boolean; // For animation
 }
 
-const MODEL_OPTIONS = [
-  { value: "gpt-4o-mini", label: "GPT-4o Mini" },
-  { value: "gpt-4o", label: "GPT-4o" },
-  { value: "gpt-4.1-mini", label: "GPT-4.1 Mini" },
-];
+interface EventFilters {
+  level?: string;
+  type?: string;
+  severity?: string;
+  runId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
+}
 
-const DEFAULT_MESSAGE = "Siento que necesito pasos claros para manejar la situación con mi pareja…";
+const LEVEL_COLORS = {
+  INFO: "bg-blue-500",
+  WARN: "bg-yellow-500", 
+  ERROR: "bg-red-500",
+  DEBUG: "bg-gray-500"
+};
+
+const SEVERITY_COLORS = {
+  LOW: "bg-green-500",
+  MEDIUM: "bg-yellow-500",
+  HIGH: "bg-red-500"
+};
 
 export default function LLMLogsPage() {
-  const { apiKey } = useSettingsStore();
+  const { user, isAuthenticated } = useSupabaseAuth();
   const { toast } = useToast();
   
-  const [userMessage, setUserMessage] = useState(DEFAULT_MESSAGE);
-  const [selectedModel, setSelectedModel] = useState("gpt-4o-mini");
-  const [simulationMode, setSimulationMode] = useState(false);
-  const [isRunning, setIsRunning] = useState(false);
-  const [testResult, setTestResult] = useState<LLMTestResult | null>(null);
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isLive, setIsLive] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const [filteredCount, setFilteredCount] = useState(0);
+  const [showFiltered, setShowFiltered] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(true);
+  
+  const [filters, setFilters] = useState<EventFilters>({
+    level: 'all',
+    type: 'all',
+    severity: 'all'
+  });
 
-  const handleRunTest = async () => {
-    if (!apiKey && !simulationMode) {
-      toast({
-        title: "API Key Required",
-        description: "Please set your OpenAI API key in Settings or enable Simulation Mode.",
-        variant: "destructive",
-      });
-      return;
-    }
+  // Load initial events
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    
+    loadEvents();
+  }, [isAuthenticated, user]);
 
-    setIsRunning(true);
-    const startTime = Date.now();
+  // Set up realtime subscription
+  useEffect(() => {
+    if (!isAuthenticated || !user || isPaused) return;
 
+    const cleanup = subscribeLogs(user.id, {
+      onEventInsert: (row) => {
+        addEventRowIfVisible(row);
+      },
+      onEventUpdate: (row) => {
+        updateEventRowIfVisible(row);
+      },
+      onRunInsert: (row) => {
+        // Could add run creation notifications here
+        console.log('New run created:', row.id);
+      }
+    });
+
+    return cleanup;
+  }, [isAuthenticated, user, isPaused, filters]);
+
+  const loadEvents = async () => {
+    if (!user) return;
+    
+    setLoading(true);
     try {
-      const messages = [{ role: "user", content: userMessage }];
-      const promptChars = userMessage.length;
-      const inputTokensEstimate = Math.ceil(promptChars / 3.7);
+      const query = (supabase as any)
+        .from('events')
+        .select('*')
+        .eq('owner', user.id)
+        .order('ts', { ascending: false })
+        .limit(500);
 
-      const request = {
-        model: selectedModel,
-        messages,
-        temperature: 0.7,
-        top_p: 1,
-        max_completion_tokens: 800,
-      };
-
-      let result: LLMTestResult;
-
-      if (simulationMode) {
-        // Simulation mode
-        const durationMs = Date.now() - startTime + Math.random() * 500; // Simulate some delay
-        
-        result = {
-          summary: {
-            status: "SIMULATED",
-            code: 0,
-            message: "Simulation completed successfully",
-            durationMs: Math.round(durationMs),
-            model: selectedModel,
-            promptChars,
-            inputTokensEstimate,
-            simulated: true,
-          },
-          request,
-          response: {
-            success: true,
-            data: {
-              id: "sim-" + Date.now(),
-              object: "chat.completion",
-              created: Math.floor(Date.now() / 1000),
-              model: selectedModel,
-              choices: [{
-                index: 0,
-                message: {
-                  role: "assistant",
-                  content: "Entiendo que estás pasando por una situación desafiante con tu pareja. Es completamente normal sentirse abrumado cuando necesitamos claridad en nuestras relaciones.\n\n¿Podrías contarme un poco más sobre qué aspecto específico de la situación te resulta más difícil de manejar? Esto me ayudará a darte pasos más precisos."
-                },
-                logprobs: null,
-                finish_reason: "stop"
-              }],
-              usage: {
-                prompt_tokens: inputTokensEstimate,
-                completion_tokens: 85,
-                total_tokens: inputTokensEstimate + 85
-              }
-            }
-          }
-        };
-      } else {
-        // Real API call
-        try {
-          const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(request),
-          });
-
-          const durationMs = Date.now() - startTime;
-          
-          if (response.ok) {
-            const data = await response.json();
-            result = {
-              summary: {
-                status: "SUCCESS",
-                code: response.status,
-                message: "Request completed successfully",
-                durationMs,
-                model: selectedModel,
-                promptChars,
-                inputTokensEstimate,
-                simulated: false,
-              },
-              request,
-              response: {
-                success: true,
-                data,
-              }
-            };
-          } else {
-            const errorData = await response.json().catch(() => ({}));
-            result = {
-              summary: {
-                status: "PROVIDER_ERROR",
-                code: response.status,
-                message: `HTTP ${response.status}: ${errorData.error?.message || response.statusText}`,
-                durationMs,
-                model: selectedModel,
-                promptChars,
-                inputTokensEstimate,
-                simulated: false,
-              },
-              request,
-              response: {
-                success: false,
-                error: {
-                  status: response.status,
-                  headers: Object.fromEntries([...response.headers.entries()]),
-                  body: errorData,
-                  message: errorData.error?.message || response.statusText,
-                }
-              }
-            };
-          }
-        } catch (error) {
-          const durationMs = Date.now() - startTime;
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          const errorStack = error instanceof Error ? error.stack : undefined;
-          
-          result = {
-            summary: {
-              status: "NETWORK_ERROR",
-              message: errorMessage,
-              durationMs,
-              model: selectedModel,
-              promptChars,
-              inputTokensEstimate,
-              simulated: false,
-            },
-            request,
-            response: {
-              success: false,
-              error: {
-                message: errorMessage,
-                stack: errorStack,
-              }
-            }
-          };
-        }
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('Failed to load events:', error);
+        toast({
+          title: "Failed to load events",
+          description: error.message,
+          variant: "destructive"
+        });
+        return;
       }
 
-      setTestResult(result);
-      
+      setEvents(data || []);
     } catch (error) {
-      console.error('Test execution error:', error);
-      toast({
-        title: "Test Failed",
-        description: error instanceof Error ? error.message : "Unknown error occurred",
-        variant: "destructive",
-      });
+      console.error('Error loading events:', error);
     } finally {
-      setIsRunning(false);
+      setLoading(false);
     }
   };
 
-  const copyToClipboard = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast({
-        title: "Copied!",
-        description: `${label} copied to clipboard`,
+  const addEventRowIfVisible = (row: EventRow) => {
+    const passesFilters = checkEventPassesFilters(row);
+    
+    if (passesFilters || showFiltered) {
+      setEvents(prev => {
+        // Mark as new for animation
+        const newRow = { ...row, isNew: true };
+        
+        // Remove animation flag after a short delay
+        setTimeout(() => {
+          setEvents(current => 
+            current.map(e => e.id === row.id ? { ...e, isNew: false } : e)
+          );
+        }, 2000);
+        
+        return [newRow, ...prev];
       });
-    } catch (error) {
+    } else {
+      // Increment filtered counter
+      setFilteredCount(prev => prev + 1);
+    }
+  };
+
+  const updateEventRowIfVisible = (row: EventRow) => {
+    setEvents(prev => 
+      prev.map(e => e.id === row.id ? { ...row, isNew: e.isNew } : e)
+    );
+  };
+
+  const checkEventPassesFilters = (event: EventRow): boolean => {
+    if (filters.level && filters.level !== 'all' && event.level !== filters.level) return false;
+    if (filters.type && filters.type !== 'all' && !event.type.includes(filters.type)) return false;
+    if (filters.severity && filters.severity !== 'all' && event.severity !== filters.severity) return false;
+    if (filters.runId && event.run_id !== filters.runId) return false;
+    if (filters.search) {
+      const searchText = [
+        event.type,
+        event.level,
+        event.severity,
+        JSON.stringify(event.meta),
+        ...(event.tags || [])
+      ].join(' ').toLowerCase();
+      if (!searchText.includes(filters.search.toLowerCase())) return false;
+    }
+    return true;
+  };
+
+  const filteredEvents = useMemo(() => {
+    if (showFiltered) return events;
+    return events.filter(checkEventPassesFilters);
+  }, [events, filters, showFiltered]);
+
+  const uniqueTypes = useMemo(() => {
+    const types = new Set(events.map(e => e.type));
+    return Array.from(types).sort();
+  }, [events]);
+
+  const uniqueRunIds = useMemo(() => {
+    const runIds = new Set(events.map(e => e.run_id).filter(Boolean));
+    return Array.from(runIds).sort();
+  }, [events]);
+
+  const togglePause = () => {
+    setIsPaused(!isPaused);
+    setIsLive(!isPaused);
+    
+    if (isPaused) {
       toast({
-        title: "Copy Failed",
-        description: "Could not copy to clipboard",
-        variant: "destructive",
+        title: "Live updates resumed",
+        description: "New events will appear automatically"
+      });
+    } else {
+      toast({
+        title: "Live updates paused", 
+        description: "Click Resume to continue receiving updates"
       });
     }
   };
 
-  const formatJSON = (obj: any) => JSON.stringify(obj, null, 2);
-
-  const getStatusBadge = () => {
-    if (!testResult) return null;
-    
-    const { status, code, simulated } = testResult.summary;
-    
-    if (simulated) {
-      return <Badge variant="secondary">Simulated</Badge>;
-    }
-    
-    if (status === "SUCCESS") {
-      return <Badge variant="default" className="bg-green-500">Success</Badge>;
-    }
-    
-    if (status === "PROVIDER_ERROR" && code) {
-      return <Badge variant="destructive">Provider Error {code}</Badge>;
-    }
-    
-    return <Badge variant="destructive">Error</Badge>;
+  const showAllFiltered = () => {
+    setShowFiltered(true);
+    setFilteredCount(0);
+    toast({
+      title: "Showing all events",
+      description: "Filters temporarily expanded"
+    });
   };
+
+  const clearFilters = () => {
+    setFilters({
+      level: 'all',
+      type: 'all', 
+      severity: 'all'
+    });
+    setShowFiltered(false);
+    setFilteredCount(0);
+  };
+
+  const formatTimestamp = (ts: string) => {
+    return format(new Date(ts), 'HH:mm:ss.SSS');
+  };
+
+  const getEventRowClassName = (event: EventRow) => {
+    let className = "transition-all duration-500";
+    if (event.isNew) {
+      className += " bg-primary/10 animate-pulse";
+    }
+    return className;
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold mb-4">Unified Log Viewer</h1>
+          <p className="text-muted-foreground">Please sign in to view your event logs.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">LLM Logs</h1>
-        <p className="text-muted-foreground mt-2">Debug OpenAI API calls with detailed diagnostics</p>
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Unified Log Viewer</h1>
+          <p className="text-muted-foreground">Live view of runs, turns, LLM calls, and safety events</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Live Status Badge */}
+          <Badge variant={isLive && !isPaused ? "default" : "secondary"} className="flex items-center gap-1">
+            <Radio className={`w-3 h-3 ${isLive && !isPaused ? 'text-green-400' : 'text-gray-400'}`} />
+            {isPaused ? 'Paused' : isLive ? 'Live' : 'Disconnected'}
+          </Badge>
+
+          {/* Filtered Events Badge */}
+          {filteredCount > 0 && (
+            <Badge variant="outline" className="cursor-pointer" onClick={showAllFiltered}>
+              +{filteredCount} filtered
+            </Badge>
+          )}
+
+          {/* Controls */}
+          <Button variant="outline" size="sm" onClick={togglePause}>
+            {isPaused ? <Radio className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+            {isPaused ? 'Resume' : 'Pause'}
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={loadEvents} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Left Column - Form */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Test Configuration</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="message">User Message</Label>
-              <Textarea
-                id="message"
-                value={userMessage}
-                onChange={(e) => setUserMessage(e.target.value)}
-                rows={4}
-                className="resize-none"
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="w-4 h-4" />
+            Filters
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+            <div className="space-y-1">
+              <Label>Search</Label>
+              <Input
+                placeholder="Search events..."
+                value={filters.search || ''}
+                onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Model</Label>
-              <Select value={selectedModel} onValueChange={setSelectedModel}>
+            <div className="space-y-1">
+              <Label>Level</Label>
+              <Select value={filters.level || 'all'} onValueChange={(value) => setFilters(prev => ({ ...prev, level: value }))}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {MODEL_OPTIONS.map((model) => (
-                    <SelectItem key={model.value} value={model.value}>
-                      {model.label}
-                    </SelectItem>
+                  <SelectItem value="all">All Levels</SelectItem>
+                  <SelectItem value="INFO">INFO</SelectItem>
+                  <SelectItem value="WARN">WARN</SelectItem>
+                  <SelectItem value="ERROR">ERROR</SelectItem>
+                  <SelectItem value="DEBUG">DEBUG</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Type</Label>
+              <Select value={filters.type || 'all'} onValueChange={(value) => setFilters(prev => ({ ...prev, type: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {uniqueTypes.map(type => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="flex items-center justify-between">
-              <Label htmlFor="simulation">Simulation Mode</Label>
-              <Switch
-                id="simulation"
-                checked={simulationMode}
-                onCheckedChange={setSimulationMode}
-              />
+            <div className="space-y-1">
+              <Label>Severity</Label>
+              <Select value={filters.severity || 'all'} onValueChange={(value) => setFilters(prev => ({ ...prev, severity: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Severities</SelectItem>
+                  <SelectItem value="LOW">LOW</SelectItem>
+                  <SelectItem value="MEDIUM">MEDIUM</SelectItem>
+                  <SelectItem value="HIGH">HIGH</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            <Button 
-              onClick={handleRunTest} 
-              disabled={isRunning || !userMessage.trim()}
-              className="w-full"
-            >
-              <Play className="w-4 h-4 mr-2" />
-              {isRunning ? "Running Test..." : "Run Test"}
-            </Button>
-          </CardContent>
-        </Card>
+            <div className="space-y-1">
+              <Label>Run ID</Label>
+              <Select value={filters.runId || 'all'} onValueChange={(value) => setFilters(prev => ({ ...prev, runId: value === 'all' ? undefined : value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Runs</SelectItem>
+                  {uniqueRunIds.map(runId => (
+                    <SelectItem key={runId} value={runId}>{runId?.substring(0, 8)}...</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        {/* Right Column - Diagnostics */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-            <CardTitle>Diagnostics</CardTitle>
-            {getStatusBadge()}
-          </CardHeader>
-          <CardContent>
-            {!testResult ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Run a test to see diagnostics
-              </div>
-            ) : (
-              <Accordion type="multiple" className="w-full">
-                {/* Summary */}
-                <AccordionItem value="summary">
-                  <AccordionTrigger className="flex items-center justify-between">
-                    <span>Summary</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        copyToClipboard(formatJSON(testResult.summary), "Summary");
-                      }}
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="max-h-[280px] overflow-auto border rounded p-3 bg-muted/50">
-                      <div className="space-y-2 text-sm font-mono">
-                        <div><span className="font-semibold">Status:</span> {testResult.summary.status}</div>
-                        {testResult.summary.code && (
-                          <div><span className="font-semibold">Code:</span> {testResult.summary.code}</div>
+            <div className="flex items-end">
+              <Button variant="outline" onClick={clearFilters}>
+                Clear Filters
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Events Table */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Events ({filteredEvents.length})</CardTitle>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="autoscroll" className="text-sm">Auto-scroll</Label>
+              <Switch
+                id="autoscroll"
+                checked={autoScroll}
+                onCheckedChange={setAutoScroll}
+              />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[600px]">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px]">Time</TableHead>
+                  <TableHead className="w-[80px]">Level</TableHead>
+                  <TableHead className="w-[120px]">Type</TableHead>
+                  <TableHead className="w-[80px]">Severity</TableHead>
+                  <TableHead className="w-[100px]">Run</TableHead>
+                  <TableHead className="w-[60px]">Turn</TableHead>
+                  <TableHead>Meta</TableHead>
+                  <TableHead className="w-[80px]">Tags</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredEvents.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      {loading ? "Loading events..." : "No events found"}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredEvents.map((event) => (
+                    <TableRow key={event.id} className={getEventRowClassName(event)}>
+                      <TableCell className="font-mono text-xs">
+                        {formatTimestamp(event.ts)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-white ${LEVEL_COLORS[event.level] || 'bg-gray-500'}`}>
+                          {event.level}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {event.type}
+                      </TableCell>
+                      <TableCell>
+                        {event.severity && (
+                          <Badge variant="outline" className={`text-white ${SEVERITY_COLORS[event.severity] || 'bg-gray-500'}`}>
+                            {event.severity}
+                          </Badge>
                         )}
-                        <div><span className="font-semibold">Message:</span> {testResult.summary.message}</div>
-                        <div><span className="font-semibold">Duration:</span> {testResult.summary.durationMs}ms</div>
-                        <div><span className="font-semibold">Model:</span> {testResult.summary.model}</div>
-                        <div><span className="font-semibold">Prompt Chars:</span> {testResult.summary.promptChars}</div>
-                        <div><span className="font-semibold">Input Tokens Est:</span> {testResult.summary.inputTokensEstimate}</div>
-                        <div><span className="font-semibold">Simulated:</span> {testResult.summary.simulated ? "Yes" : "No"}</div>
-                      </div>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {event.run_id && (
+                          <span title={event.run_id}>
+                            {event.run_id.substring(0, 8)}...
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {event.turn_index !== null && event.turn_index !== undefined && (
+                          <Badge variant="secondary">{event.turn_index}</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-[300px]">
+                        {event.meta && (
+                          <div className="truncate text-xs text-muted-foreground">
+                            {JSON.stringify(event.meta).substring(0, 100)}
+                            {JSON.stringify(event.meta).length > 100 && '...'}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {event.tags && event.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {event.tags.slice(0, 2).map((tag, idx) => (
+                              <Badge key={idx} variant="outline" className="text-xs">
+                                {tag}
+                              </Badge>
+                            ))}
+                            {event.tags.length > 2 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{event.tags.length - 2}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </CardContent>
+      </Card>
 
-                {/* Request Preview */}
-                <AccordionItem value="request">
-                  <AccordionTrigger className="flex items-center justify-between">
-                    <span>Request Preview</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        copyToClipboard(formatJSON(testResult.request), "Request");
-                      }}
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="max-h-[280px] overflow-auto border rounded p-3 bg-muted/50">
-                      <pre className="text-xs font-mono whitespace-pre-wrap">
-                        {formatJSON(testResult.request)}
-                      </pre>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-
-                {/* Response / Raw Error */}
-                <AccordionItem value="response">
-                  <AccordionTrigger className="flex items-center justify-between">
-                    <span>Response / Raw Error</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        copyToClipboard(formatJSON(testResult.response), "Response");
-                      }}
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="max-h-[280px] overflow-auto border rounded p-3 bg-muted/50">
-                      <pre className="text-xs font-mono whitespace-pre-wrap">
-                        {formatJSON(testResult.response)}
-                      </pre>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {/* Scroll to Latest Button */}
+      {!autoScroll && (
+        <div className="fixed bottom-6 right-6">
+          <Button
+            onClick={() => {
+              setAutoScroll(true);
+              // Scroll to top of table
+              document.querySelector('[data-radix-scroll-area-viewport]')?.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="shadow-lg"
+          >
+            <ArrowDown className="w-4 h-4 mr-2" />
+            Scroll to Latest
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

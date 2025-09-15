@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle, XCircle, Clock, RefreshCw, Database, Shield, Settings, User, Users } from "lucide-react";
+import { CheckCircle, XCircle, Clock, RefreshCw, Database, Shield, Settings, User, Users, Radio } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
 import { useProfilesRepo } from "@/hooks/useProfilesRepo";
 import { supabase } from "@/integrations/supabase/client";
 import { UserAIProfile } from "@/store/profiles";
+import { testRealtimeConnection } from "@/lib/realtime";
 
 type CheckStatus = "idle" | "running" | "success" | "error";
 
@@ -68,6 +69,13 @@ export default function SupabaseValidatorPage() {
       icon: Users,
       status: "idle",
       hint: "Profile selector should load profiles from the active repository"
+    },
+    {
+      id: "realtime-channel",
+      label: "Realtime Channel",
+      icon: Radio,
+      status: "idle",
+      hint: "Realtime subscriptions should work with test event roundtrip"
     }
   ]);
 
@@ -257,6 +265,38 @@ export default function SupabaseValidatorPage() {
     }
   };
 
+  const runRealtimeCheck = async () => {
+    updateCheckStatus("realtime-channel", "running");
+    
+    if (!user) {
+      updateCheckStatus("realtime-channel", "error", "Sign in required for Realtime test");
+      return;
+    }
+    
+    try {
+      const success = await testRealtimeConnection(user.id);
+      
+      if (success) {
+        updateCheckStatus("realtime-channel", "success", "Realtime subscription and events working");
+        toast({ title: "✅ Realtime Channel", description: "Test event roundtrip successful" });
+      } else {
+        updateCheckStatus("realtime-channel", "error", "Realtime test timeout or failure");
+        toast({ 
+          title: "❌ Realtime Channel", 
+          description: "Test event did not roundtrip within 5 seconds",
+          variant: "destructive" 
+        });
+      }
+    } catch (error: any) {
+      updateCheckStatus("realtime-channel", "error", `Realtime error: ${error.message}`);
+      toast({ 
+        title: "❌ Realtime Channel", 
+        description: `Realtime test failed: ${error.message}`,
+        variant: "destructive" 
+      });
+    }
+  };
+
   const runSingleCheck = async (id: string) => {
     switch (id) {
       case "env-vars":
@@ -277,6 +317,9 @@ export default function SupabaseValidatorPage() {
       case "selector-preview":
         await runSelectorPreviewCheck();
         break;
+      case "realtime-channel":
+        await runRealtimeCheck();
+        break;
     }
   };
 
@@ -289,7 +332,7 @@ export default function SupabaseValidatorPage() {
     setChecks(prev => prev.map(check => ({ ...check, status: "idle" as CheckStatus, message: undefined })));
     
     // Run checks sequentially
-    const checkIds = ["env-vars", "auth", "table-exists", "rls-permissions", "repo-wiring", "selector-preview"];
+    const checkIds = ["env-vars", "auth", "table-exists", "rls-permissions", "repo-wiring", "selector-preview", "realtime-channel"];
     
     for (const checkId of checkIds) {
       await runSingleCheck(checkId);

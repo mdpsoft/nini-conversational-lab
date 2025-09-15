@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useRunsStore } from "@/store/runs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -6,9 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
+import { subscribeLogs } from "@/lib/realtime";
 import { 
   ExternalLink, 
   Download, 
@@ -22,7 +24,9 @@ import {
   Calendar,
   Settings,
   BarChart3,
-  AlertCircle
+  AlertCircle,
+  Radio,
+  Activity
 } from "lucide-react";
 
 interface RunDetailsPanelProps {
@@ -33,11 +37,63 @@ interface RunDetailsPanelProps {
 
 export function RunDetailsPanel({ runId, open, onClose }: RunDetailsPanelProps) {
   const { runs, addTag, removeTag, setNotes, togglePinned, setArchived, bulkDelete } = useRunsStore();
+  const { user, isAuthenticated } = useSupabaseAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [newTag, setNewTag] = useState("");
+  const [liveEventCount, setLiveEventCount] = useState(0);
+  const [isLiveActive, setIsLiveActive] = useState(false);
+  const [lastActivityTime, setLastActivityTime] = useState<Date | null>(null);
   
   const run = runs.find(r => r.runId === runId);
+
+  // Set up realtime subscription for this specific run
+  useEffect(() => {
+    if (!isAuthenticated || !user || !runId || !open) return;
+
+    console.log('Setting up realtime subscription for run:', runId);
+    let activityTimeout: NodeJS.Timeout;
+
+    const cleanup = subscribeLogs(user.id, {
+      onEventInsert: (eventRow) => {
+        if (eventRow.run_id === runId) {
+          setLiveEventCount(prev => prev + 1);
+          setIsLiveActive(true);
+          setLastActivityTime(new Date());
+          
+          // Clear any existing timeout and set a new one
+          clearTimeout(activityTimeout);
+          activityTimeout = setTimeout(() => {
+            setIsLiveActive(false);
+          }, 5000); // Mark as inactive after 5 seconds of no activity
+        }
+      },
+      onTurnInsert: (turnRow) => {
+        if (turnRow.run_id === runId) {
+          setLiveEventCount(prev => prev + 1);
+          setIsLiveActive(true);
+          setLastActivityTime(new Date());
+          
+          clearTimeout(activityTimeout);
+          activityTimeout = setTimeout(() => {
+            setIsLiveActive(false);
+          }, 5000);
+        }
+      }
+    });
+
+    return () => {
+      cleanup();
+      clearTimeout(activityTimeout);
+    };
+  }, [isAuthenticated, user, runId, open]);
+
+  // Reset live counters when panel opens for different run
+  useEffect(() => {
+    setLiveEventCount(0);
+    setIsLiveActive(false);
+    setLastActivityTime(null);
+  }, [runId]);
 
   if (!run) return null;
 
@@ -115,13 +171,33 @@ export function RunDetailsPanel({ runId, open, onClose }: RunDetailsPanelProps) 
                 {run.runId.slice(0, 12)}...
               </SheetTitle>
             </div>
-            <Badge variant={run.status === 'completed' ? 'default' : 'destructive'}>
-              {run.status}
-            </Badge>
+            <div className="flex items-center gap-2">
+              {/* Live Status Badge */}
+              {liveEventCount > 0 && (
+                <Badge variant={isLiveActive ? "default" : "secondary"} className="flex items-center gap-1">
+                  {isLiveActive ? (
+                    <Activity className="w-3 h-3 animate-pulse" />
+                  ) : (
+                    <Radio className="w-3 h-3" />
+                  )}
+                  {liveEventCount} live
+                </Badge>
+              )}
+              <Badge variant={run.status === 'completed' ? 'default' : 'destructive'}>
+                {run.status}
+              </Badge>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Calendar className="w-4 h-4" />
-            {new Date(run.createdAt).toLocaleString()}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Calendar className="w-4 h-4" />
+              {new Date(run.createdAt).toLocaleString()}
+            </div>
+            {lastActivityTime && (
+              <div className="text-xs text-muted-foreground">
+                Last activity: {lastActivityTime.toLocaleTimeString()}
+              </div>
+            )}
           </div>
         </SheetHeader>
 
