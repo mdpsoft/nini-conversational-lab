@@ -15,6 +15,7 @@ import LLMLogsPage from "./pages/llm-logs/LLMLogsPage";
 import ProfilesPage from "./pages/profiles/ProfilesPage";
 import SupabaseSQLPage from "./pages/SupabaseSQLPage";
 import SupabaseValidatorPage from "./pages/SupabaseValidatorPage";
+import SupabaseSQLPhase2Page from "./pages/SupabaseSQLPhase2Page";
 import { useSettingsStore } from "./store/settings";
 import { useScenariosStore } from "./store/scenarios";
 
@@ -52,6 +53,7 @@ const App = () => {
               <Route path="profiles" element={<ProfilesPage />} />
               <Route path="supabase-sql" element={<SupabaseSQLPage />} />
               <Route path="supabase-validate" element={<SupabaseValidatorPage />} />
+              <Route path="supabase-sql-phase2" element={<SupabaseSQLPhase2Page />} />
               <Route 
                 index
                 element={

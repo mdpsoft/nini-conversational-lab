@@ -26,6 +26,7 @@ const navigationItems = [
   { title: "LLM Logs", url: "/llm-logs", icon: Bug },
   { title: "USERAI Profiles", url: "/profiles", icon: User },
   { title: "Supabase SQL", url: "/supabase-sql", icon: Database },
+  { title: "Supabase SQL – Phase 2", url: "/supabase-sql-phase2", icon: Database },
   { title: "Supabase Validator", url: "/supabase-validate", icon: Settings },
 ];
 
