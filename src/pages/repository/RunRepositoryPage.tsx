@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FolderOpen, Pin, Archive, Trash2, Download } from "lucide-react";
+import { FolderOpen, Pin, Archive, Trash2, Download, Eye } from "lucide-react";
+import { RunDetailsPanel } from "./RunDetailsPanel";
 
 export default function RunRepositoryPage() {
   const { runs, bulkDelete, setArchived, togglePinned } = useRunsStore();
@@ -13,6 +14,8 @@ export default function RunRepositoryPage() {
   const [hideArchived, setHideArchived] = useState(true);
   const [status, setStatus] = useState<"" | "completed" | "failed" | "aborted">("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
   const nav = useNavigate();
 
   const rows = useMemo(() => {
@@ -44,6 +47,16 @@ export default function RunRepositoryPage() {
         ? [...prev, runId] 
         : prev.filter(id => id !== runId)
     );
+  };
+
+  const handleOpenDetails = (runId: string) => {
+    setSelectedRunId(runId);
+    setPanelOpen(true);
+  };
+
+  const handleClosePanel = () => {
+    setPanelOpen(false);
+    setSelectedRunId(null);
   };
 
   return (
@@ -144,7 +157,12 @@ export default function RunRepositoryPage() {
                   {new Date(r.createdAt).toLocaleDateString()} {new Date(r.createdAt).toLocaleTimeString()}
                 </td>
                 <td className="p-2 font-mono text-xs">
-                  {r.runId.slice(0, 8)}...
+                  <button 
+                    onClick={() => handleOpenDetails(r.runId)}
+                    className="text-primary hover:underline"
+                  >
+                    {r.runId.slice(0, 8)}...
+                  </button>
                 </td>
                 <td className="p-2">{r.model ?? '-'}</td>
                 <td className="p-2">
@@ -201,6 +219,14 @@ export default function RunRepositoryPage() {
                     <Button 
                       size="sm" 
                       variant="ghost" 
+                      onClick={() => handleOpenDetails(r.runId)}
+                      title="View Details"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
                       onClick={() => nav(`/results?run=${r.runId}`)}
                       title="Open Results"
                     >
@@ -236,6 +262,12 @@ export default function RunRepositoryPage() {
           </tbody>
         </table>
       </div>
+
+      <RunDetailsPanel 
+        runId={selectedRunId}
+        open={panelOpen}
+        onClose={handleClosePanel}
+      />
     </div>
   );
 }
