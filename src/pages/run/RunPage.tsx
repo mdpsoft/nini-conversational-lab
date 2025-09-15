@@ -24,11 +24,11 @@ import { summarizeRunMD } from "../../core/nini/summarize";
 import { useToast } from "@/hooks/use-toast";
 import { MaxTurnsInput } from "@/components/MaxTurnsInput";
 import { UserAIProfileSelector, RunMode } from "@/components/UserAIProfileSelector";
-import { useProfilesStore } from "../../store/profiles";
+import { useProfilesRepo } from "@/hooks/useProfilesRepo";
 
 export default function RunPage() {
   const { scenarios, selectedIds, setSelectedIds } = useScenariosStore();
-  const { profiles } = useProfilesStore();
+  const { profiles } = useProfilesRepo();
   const { 
     xmlSystemSpec, 
     knobsBase, 

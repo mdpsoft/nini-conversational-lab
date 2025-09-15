@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useProfilesStore, UserAIProfile } from "@/store/profiles";
+import { UserAIProfile } from "@/store/profiles";
 import { OverviewTab } from "./tabs/OverviewTab";
 import { PersonalityTab } from "./tabs/PersonalityTab";
 import { FocusTab } from "./tabs/FocusTab";
@@ -12,11 +12,14 @@ import { BehaviorTab } from "./tabs/BehaviorTab";
 import { SafetyTab } from "./tabs/SafetyTab";
 import { JsonTab } from "./tabs/JsonTab";
 import { ProfilePreview } from "./ProfilePreview";
+import { useProfilesRepo } from "@/hooks/useProfilesRepo";
+import { useToast } from "@/hooks/use-toast";
 
 interface ProfileEditorProps {
   profileId?: string;
   isOpen: boolean;
   onClose: () => void;
+  onSave?: (profile: UserAIProfile) => Promise<void>;
 }
 
 function generateId(name: string, version: number): string {
@@ -28,8 +31,9 @@ function generateId(name: string, version: number): string {
   return `userai.${slug}.v${version}`;
 }
 
-export function ProfileEditor({ profileId, isOpen, onClose }: ProfileEditorProps) {
-  const { profiles, addProfile, updateProfile, deleteProfile, duplicateProfile } = useProfilesStore();
+export function ProfileEditor({ profileId, isOpen, onClose, onSave }: ProfileEditorProps) {
+  const { profiles, upsertProfile, removeProfile } = useProfilesRepo();
+  const { toast } = useToast();
   
   const [formData, setFormData] = useState<UserAIProfile>({
     id: "",
@@ -61,6 +65,7 @@ export function ProfileEditor({ profileId, isOpen, onClose }: ProfileEditorProps
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
   const isEditing = !!profileId;
 
   useEffect(() => {
@@ -139,33 +144,85 @@ export function ProfileEditor({ profileId, isOpen, onClose }: ProfileEditorProps
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!validateForm()) return;
 
-    const profileToSave = { ...formData };
-    
-    if (!isEditing) {
-      profileToSave.id = generateId(formData.name, formData.version);
-      addProfile(profileToSave);
-    } else {
-      updateProfile(profileId!, profileToSave);
+    setIsSaving(true);
+    try {
+      const profileToSave = { ...formData };
+      
+      if (!isEditing) {
+        profileToSave.id = generateId(formData.name, formData.version);
+      }
+      
+      if (onSave) {
+        await onSave(profileToSave);
+      } else {
+        await upsertProfile(profileToSave);
+      }
+      
+      toast({
+        title: isEditing ? "Profile updated" : "Profile created",
+        description: "Profile has been saved successfully",
+      });
+      
+      onClose();
+    } catch (error) {
+      toast({
+        title: "Save failed",
+        description: error instanceof Error ? error.message : "Failed to save profile",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
     }
-    
-    onClose();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
+    if (!profileId) return;
+    
     if (confirm(`¿Eliminar el perfil "${formData.name}"?`)) {
-      deleteProfile(profileId!);
-      onClose();
+      try {
+        await removeProfile(profileId);
+        toast({
+          title: "Profile deleted",
+          description: "Profile has been removed successfully",
+        });
+        onClose();
+      } catch (error) {
+        toast({
+          title: "Delete failed",
+          description: error instanceof Error ? error.message : "Failed to delete profile",
+          variant: "destructive"
+        });
+      }
     }
   };
 
-  const handleDuplicate = () => {
-    if (profileId) {
-      const newId = duplicateProfile(profileId);
+  const handleDuplicate = async () => {
+    if (!profileId) return;
+    
+    try {
+      const timestamp = Date.now().toString();
+      const newProfile = {
+        ...formData,
+        id: `userai.${formData.name.toLowerCase().replace(/\s+/g, '-')}-copy-${timestamp}.v${formData.version + 1}`,
+        name: `${formData.name} (Copia)`,
+        version: formData.version + 1,
+      };
+      
+      await upsertProfile(newProfile);
+      toast({
+        title: "Profile duplicated",
+        description: "Profile has been duplicated successfully",
+      });
       onClose();
-      // Could potentially open the duplicated profile in editor
+    } catch (error) {
+      toast({
+        title: "Duplicate failed",
+        description: error instanceof Error ? error.message : "Failed to duplicate profile",
+        variant: "destructive"
+      });
     }
   };
 
@@ -281,9 +338,9 @@ export function ProfileEditor({ profileId, isOpen, onClose }: ProfileEditorProps
             <Button variant="outline" onClick={onClose}>
               Cancelar
             </Button>
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} disabled={isSaving}>
               <Save className="h-4 w-4" />
-              {isEditing ? "Guardar Cambios" : "Crear Perfil"}
+              {isSaving ? "Guardando..." : isEditing ? "Guardar Cambios" : "Crear Perfil"}
             </Button>
           </div>
         </div>

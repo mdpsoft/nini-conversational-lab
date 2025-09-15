@@ -22,7 +22,7 @@ import {
   Play
 } from 'lucide-react';
 import { useRunsStore } from '@/store/runs';
-import { useProfilesStore } from '@/store/profiles';
+import { useProfilesRepo } from '@/hooks/useProfilesRepo';
 import { useScenariosStore } from '@/store/scenarios';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -40,7 +40,7 @@ import { Link } from 'react-router-dom';
 
 export default function BatchRunReportPage() {
   const { runs } = useRunsStore();
-  const { profiles } = useProfilesStore();
+  const { profiles } = useProfilesRepo();
   const { scenarios } = useScenariosStore();
   const { toast } = useToast();
 
