@@ -20,6 +20,7 @@ import { QUICK_DEMO_CONFIG } from "../../utils/seeds";
 import { buildSystemPrompt } from "../../core/nini/prompt";
 import { summarizeRunMD } from "../../core/nini/summarize";
 import { useToast } from "@/hooks/use-toast";
+import { MaxTurnsInput } from "@/components/MaxTurnsInput";
 
 export default function RunPage() {
   const { scenarios, selectedIds, setSelectedIds } = useScenariosStore();
@@ -312,20 +313,15 @@ export default function RunPage() {
                   />
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="maxTurns">Max Turns</Label>
-                  <Input
-                    id="maxTurns"
-                    type="number"
-                    min="1"
-                    max="50"
-                    value={runOptions.maxTurns}
-                    onChange={(e) => setRunOptions({
-                      ...runOptions,
-                      maxTurns: parseInt(e.target.value) || 10
-                    })}
-                  />
-                </div>
+                <MaxTurnsInput
+                  value={runOptions.maxTurns}
+                  onChange={(maxTurns) => setRunOptions({
+                    ...runOptions,
+                    maxTurns
+                  })}
+                  min={10}
+                  max={50}
+                />
               </div>
 
               <div className="space-y-2">
