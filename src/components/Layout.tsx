@@ -8,7 +8,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useSettingsStore } from "../store/settings";
-import { SupabaseStatus } from "@/components/SupabaseStatus";
+import { UserMenu } from "@/components/UserMenu";
 import { CollapsibleNav } from "./CollapsibleNav";
 
 function AppSidebar() {
@@ -40,7 +40,7 @@ function Layout() {
             </div>
             
             <div className="flex items-center gap-4">
-              <SupabaseStatus />
+              <UserMenu />
               <Button
                 variant="ghost"
                 size="sm"
