@@ -15,7 +15,7 @@ function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
-        <div className="p-4 border-b">
+        <div className="h-12 p-4 border-b flex items-center">
           <h2 className="font-semibold text-sidebar-foreground">Nini Test Bench</h2>
         </div>
         <CollapsibleNav />
