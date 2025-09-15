@@ -620,6 +620,13 @@ export default function RunPage() {
                         beat={(currentConversation as any).runtime_debug?.beat}
                         memory={(currentConversation as any).runtime_debug?.memory}
                         transcript={(currentConversation as any).runtime_debug?.transcript}
+                        postProcess={(() => {
+                          // Get post-processing info from the last user turn
+                          const lastUserTurn = currentConversation.turns
+                            .filter(turn => turn.agent === 'user')
+                            .pop();
+                          return lastUserTurn?.meta?.postProcess;
+                        })()}
                         isVisible={showRuntimeDebug}
                         onToggle={setShowRuntimeDebug}
                       />

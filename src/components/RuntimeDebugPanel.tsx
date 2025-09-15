@@ -10,11 +10,13 @@ import { getBeatDescription } from "@/core/userai/beatScheduler";
 import type { Beat } from "@/core/userai/beatScheduler";
 import type { UserAIMemory } from "@/core/userai/promptBuilder";
 import type { TranscriptTurn } from "@/core/userai/memoryExtractor";
+import type { PostProcessMeta } from "@/core/userai/responsePostProcessor";
 
 interface RuntimeDebugPanelProps {
   beat?: Beat;
   memory?: UserAIMemory;
   transcript?: TranscriptTurn[];
+  postProcess?: PostProcessMeta;
   isVisible?: boolean;
   onToggle?: (visible: boolean) => void;
 }
@@ -23,6 +25,7 @@ export function RuntimeDebugPanel({
   beat,
   memory,
   transcript,
+  postProcess,
   isVisible = false,
   onToggle
 }: RuntimeDebugPanelProps) {
@@ -141,6 +144,57 @@ export function RuntimeDebugPanel({
                 </div>
               </ScrollArea>
             </div>
+
+            {/* Post-Processing Info */}
+            {postProcess && (
+              <>
+                <Separator />
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">Post-Procesamiento</h4>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyToClipboard(
+                        `Early-Closure: ${postProcess.earlyClosureDetected ? 'detectado' : 'ninguno'} ${postProcess.strategy ? `(${postProcess.strategy})` : ''}\nQ-Rate: ${postProcess.questionCountBefore}→${postProcess.questionCountAfter}`,
+                        'postprocess'
+                      )}
+                      className="h-auto p-1"
+                    >
+                      {copied === 'postprocess' ? (
+                        <Check className="h-3 w-3" />
+                      ) : (
+                        <Copy className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </div>
+                  
+                  <div className="bg-muted/50 p-3 rounded text-xs space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Early-Closure:</span>
+                      <div className="flex items-center gap-1">
+                        <Badge 
+                          variant={postProcess.earlyClosureDetected ? "destructive" : "secondary"}
+                          className="text-xs"
+                        >
+                          {postProcess.earlyClosureDetected ? 'Detectado' : 'Ninguno'}
+                        </Badge>
+                        {postProcess.strategy && (
+                          <span className="text-xs text-muted-foreground">({postProcess.strategy})</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Q-Rate:</span>
+                      <span className="font-mono">
+                        {postProcess.questionCountBefore}→{postProcess.questionCountAfter}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Transcript Summary */}
             {transcript && transcript.length > 0 && (

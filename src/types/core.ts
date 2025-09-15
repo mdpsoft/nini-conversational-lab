@@ -12,6 +12,12 @@ export interface Turn {
     crisis_active?: boolean;
     features_used?: string[];
     rule_violations?: string[];
+    postProcess?: {
+      earlyClosureDetected: boolean;
+      questionCountBefore: number;
+      questionCountAfter: number;
+      strategy?: 'cut' | 'append' | 'rewrite';
+    };
   };
 }
 

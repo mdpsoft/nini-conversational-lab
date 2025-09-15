@@ -6,6 +6,7 @@ import { aggregateScores } from '../scoring/score';
 import { generateId } from '../../utils/seeds';
 import { buildSystemPrompt } from '../nini/prompt';
 import { summarizeConversationMD } from '../nini/summarize';
+import { postProcessUserAIResponse } from '../userai/responsePostProcessor';
 
 export class Runner {
   private static readonly BENCHMARKS = {
@@ -149,10 +150,24 @@ export class Runner {
             );
             
             if (userAIResponse.success) {
+              // Apply post-processing to USERAI response
+              const isFinalTurn = turnIndex >= options.maxTurns - 1;
+              const lang = scenario.language === 'mix' ? 'es' : scenario.language;
+              
+              const postProcessed = postProcessUserAIResponse(userAIResponse.text, {
+                isFinalTurn,
+                questionRate: userAIProfile?.question_rate || { min: 0, max: 3 },
+                lang: lang as 'es' | 'en',
+                useSoftClosure: false,
+              });
+
               userTurn = {
                 agent: 'user',
-                text: userAIResponse.text,
-                meta: userAIResponse.meta
+                text: postProcessed.text,
+                meta: {
+                  ...userAIResponse.meta,
+                  postProcess: postProcessed.meta,
+                }
               };
               conversation.turns.push(userTurn);
               
