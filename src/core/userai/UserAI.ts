@@ -20,13 +20,14 @@ export interface UserAIContext {
   satisfactionLevel: number; // [0..1] how well goals are being met
   turnsWithoutProgress: number;
   crisisModeActive: boolean;
+  profile?: any; // USERAI profile data
 }
 
 export class UserAI {
   private context: UserAIContext;
   private random: () => number;
 
-  constructor(scenario: Scenario, seed: number = Date.now()) {
+  constructor(scenario: Scenario, seed: number = Date.now(), profile?: any) {
     this.context = {
       scenario,
       seed,
@@ -35,6 +36,7 @@ export class UserAI {
       satisfactionLevel: 0,
       turnsWithoutProgress: 0,
       crisisModeActive: false,
+      profile,
     };
     
     // Simple seeded random function for reproducibility
@@ -303,7 +305,10 @@ export class UserAI {
   }
 
   private generateABChoiceResponse(niniResponse?: string): string {
-    const { attachment_style } = this.context.scenario;
+    const { scenario, profile } = this.context;
+    
+    // Use profile attachment style if available, otherwise fall back to scenario
+    const attachmentStyle = profile?.attachment_style || scenario.attachment_style;
     
     // Extract A and B options (simple pattern matching)
     if (!niniResponse) return this.generateReflectResponse();
@@ -315,9 +320,9 @@ export class UserAI {
     
     // Choose based on attachment style
     let choice = '';
-    if (attachment_style === 'anxious') {
+    if (attachmentStyle === 'anxious') {
       choice = 'A'; // More contained option
-    } else if (attachment_style === 'avoidant') {
+    } else if (attachmentStyle === 'avoidant') {
       choice = 'B'; // Less invasive option  
     } else {
       choice = this.random() < 0.5 ? 'A' : 'B'; // Secure chooses pragmatically
@@ -423,16 +428,19 @@ export class UserAI {
   }
 
   private applyAttachmentStyle(text: string): string {
-    const { attachment_style } = this.context.scenario;
+    const { scenario, profile } = this.context;
     
-    if (attachment_style === 'anxious') {
+    // Use profile attachment style if available, otherwise fall back to scenario
+    const attachmentStyle = profile?.attachment_style || scenario.attachment_style;
+    
+    if (attachmentStyle === 'anxious') {
       // Add urgency and validation seeking
       const urgentPhrases = ['ahora mismo', 'ya', 'urgente'];
       if (this.random() < 0.3) {
         const phrase = urgentPhrases[Math.floor(this.random() * urgentPhrases.length)];
         text += ` Lo necesito ${phrase}.`;
       }
-    } else if (attachment_style === 'avoidant') {
+    } else if (attachmentStyle === 'avoidant') {
       // Add distance and hesitation
       const distancingPhrases = ['supongo', 'tal vez', 'no estoy seguro'];
       if (this.random() < 0.3) {
@@ -516,6 +524,6 @@ export class UserAI {
 }
 
 // Factory function for creating UserAI instances
-export function createUserAI(scenario: Scenario, seed?: number): UserAI {
-  return new UserAI(scenario, seed);
+export function createUserAI(scenario: Scenario, seed: number = Date.now(), profile?: any): UserAI {
+  return new UserAI(scenario, seed, profile);
 }

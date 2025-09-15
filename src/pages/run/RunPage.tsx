@@ -21,9 +21,12 @@ import { buildSystemPrompt } from "../../core/nini/prompt";
 import { summarizeRunMD } from "../../core/nini/summarize";
 import { useToast } from "@/hooks/use-toast";
 import { MaxTurnsInput } from "@/components/MaxTurnsInput";
+import { UserAIProfileSelector, RunMode } from "@/components/UserAIProfileSelector";
+import { useProfilesStore } from "../../store/profiles";
 
 export default function RunPage() {
   const { scenarios, selectedIds, setSelectedIds } = useScenariosStore();
+  const { profiles } = useProfilesStore();
   const { 
     xmlSystemSpec, 
     knobsBase, 
@@ -59,6 +62,8 @@ export default function RunPage() {
   });
 
   const [isRunning, setIsRunning] = useState(false);
+  const [selectedProfileIds, setSelectedProfileIds] = useState<string[]>([]);
+  const [runMode, setRunMode] = useState<RunMode>("single");
 
   const selectedScenarios = scenarios.filter(s => selectedIds.includes(s.id));
 
@@ -75,6 +80,11 @@ export default function RunPage() {
     
     if (selectedScenarios.length === 0) {
       issues.push("No scenarios selected");
+    }
+    
+    // Check USERAI Profile requirements
+    if (selectedProfileIds.length === 0) {
+      issues.push(runMode === "single" ? "Select a USERAI profile" : "Select one or more USERAI profiles");
     }
     
     return {
@@ -98,7 +108,7 @@ export default function RunPage() {
     await runScenarios(demoScenarios, {
       ...QUICK_DEMO_CONFIG,
       knobVariants: [{ label: "Demo", knobs: {} }]
-    });
+    }, profiles.length > 0 ? [profiles[0]] : undefined);
   };
 
   const handleRun = async () => {
@@ -112,10 +122,15 @@ export default function RunPage() {
       return;
     }
 
-    await runScenarios(selectedScenarios, runOptions);
+    // Get selected profiles and prepare run configurations
+    const profilesToUse = runMode === "single" 
+      ? profiles.filter(p => p.id === selectedProfileIds[0]).slice(0, 1)
+      : profiles.filter(p => selectedProfileIds.includes(p.id));
+
+    await runScenarios(selectedScenarios, runOptions, profilesToUse);
   };
 
-  const runScenarios = async (scenariosToRun: any[], options: RunOptions) => {
+  const runScenarios = async (scenariosToRun: any[], options: RunOptions, userAIProfiles?: any[]) => {
     setIsRunning(true);
     
     const runId = `run_${Date.now()}`;
@@ -126,9 +141,13 @@ export default function RunPage() {
       let totalConversations = 0;
       let completedConversations = 0;
 
-      // Calculate total for progress
+      // Calculate total conversations considering profiles
+      const profileCount = userAIProfiles?.length || 1;
       scenariosToRun.forEach(scenario => {
-        totalConversations += options.conversationsPerScenario * (options.knobVariants?.length || 1);
+        const conversationsForScenario = runMode === "batch" 
+          ? options.conversationsPerScenario * profileCount
+          : options.conversationsPerScenario;
+        totalConversations += conversationsForScenario * (options.knobVariants?.length || 1);
       });
 
       updateProgress({
@@ -143,36 +162,106 @@ export default function RunPage() {
       for (let scenarioIndex = 0; scenarioIndex < scenariosToRun.length; scenarioIndex++) {
         const scenario = scenariosToRun[scenarioIndex];
         
-        const result = await Runner.runScenario(
-          scenario,
-          options,
-          xmlSystemSpec,
-          knobsBase,
-          {
-            apiKey: apiKey || "",
-            model,
-            temperature,
-            maxTokens,
-          },
-          simulationMode
-        );
+        if (runMode === "batch" && userAIProfiles && userAIProfiles.length > 0) {
+          // Run one conversation per profile
+          for (const profile of userAIProfiles) {
+            const result = await Runner.runScenario(
+              scenario,
+              { ...options, conversationsPerScenario: 1 },
+              xmlSystemSpec,
+              knobsBase,
+              {
+                apiKey: apiKey || "",
+                model,
+                temperature,
+                maxTokens,
+              },
+              simulationMode,
+              profile // Pass profile to runner
+            );
 
-        results.push(result);
+            // Tag conversations with profile info
+            result.conversations.forEach(conversation => {
+              (conversation as any).userAI = {
+                profileId: profile.id,
+                profile: profile,
+                lang: profile.lang,
+                verbosity: profile.verbosity,
+                question_rate: profile.question_rate
+              };
+            });
 
-        // Update progress for each conversation
-        result.conversations.forEach((conversation, convIndex) => {
-          completedConversations++;
-          updateCurrentConversation(conversation);
-          
-          updateProgress({
-            scenarioIndex,
-            conversationIndex: convIndex,
-            turnIndex: conversation.turns.length,
-            totalScenarios: scenariosToRun.length,
-            totalConversations,
-            isComplete: completedConversations >= totalConversations,
+            results.push(result);
+          }
+        } else {
+          // Single mode or no profiles - use first profile if available
+          const profile = userAIProfiles?.[0];
+          const result = await Runner.runScenario(
+            scenario,
+            options,
+            xmlSystemSpec,
+            knobsBase,
+            {
+              apiKey: apiKey || "",
+              model,
+              temperature,
+              maxTokens,
+            },
+            simulationMode,
+            profile
+          );
+
+          if (profile) {
+            result.conversations.forEach(conversation => {
+              (conversation as any).userAI = {
+                profileId: profile.id,
+                profile: profile,
+                lang: profile.lang,
+                verbosity: profile.verbosity,
+                question_rate: profile.question_rate
+              };
+            });
+          }
+
+          results.push(result);
+        }
+
+        // Update progress for completed conversations
+        const lastResult = results[results.length - 1];
+        if (runMode === "batch" && userAIProfiles && userAIProfiles.length > 1) {
+          // Multiple results for batch mode
+          const batchResults = results.slice(-userAIProfiles.length);
+          batchResults.forEach((batchResult, idx) => {
+            batchResult.conversations.forEach((conversation, convIndex) => {
+              completedConversations++;
+              updateCurrentConversation(conversation);
+              
+              updateProgress({
+                scenarioIndex,
+                conversationIndex: (idx * batchResult.conversations.length) + convIndex,
+                turnIndex: conversation.turns.length,
+                totalScenarios: scenariosToRun.length,
+                totalConversations,
+                isComplete: completedConversations >= totalConversations,
+              });
+            });
           });
-        });
+        } else {
+          // Single result
+          lastResult.conversations.forEach((conversation, convIndex) => {
+            completedConversations++;
+            updateCurrentConversation(conversation);
+            
+            updateProgress({
+              scenarioIndex,
+              conversationIndex: convIndex,
+              turnIndex: conversation.turns.length,
+              totalScenarios: scenariosToRun.length,
+              totalConversations,
+              isComplete: completedConversations >= totalConversations,
+            });
+          });
+        }
       }
 
       const runSummary = {
@@ -340,6 +429,28 @@ export default function RunPage() {
 
               <Separator />
 
+              {/* USERAI Profile Selection */}
+              <UserAIProfileSelector
+                selectedProfileIds={selectedProfileIds}
+                onSelectionChange={setSelectedProfileIds}
+                runMode={runMode}
+                onRunModeChange={setRunMode}
+                disabled={isRunning}
+              />
+
+              <Separator />
+
+              {/* USERAI Profile Selection */}
+              <UserAIProfileSelector
+                selectedProfileIds={selectedProfileIds}
+                onSelectionChange={setSelectedProfileIds}
+                runMode={runMode}
+                onRunModeChange={setRunMode}
+                disabled={isRunning}
+              />
+
+              <Separator />
+
               {/* Preflight Check */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
@@ -477,11 +588,18 @@ export default function RunPage() {
                 <div className="space-y-4">
                   <div className="flex justify-between text-sm">
                     <span>ID: {currentConversation.id.slice(-8)}</span>
-                    {currentConversation.scores && (
-                      <Badge variant="outline">
-                        Score: {currentConversation.scores.total}/100
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {(currentConversation as any).userAI?.profileId && (
+                        <Badge variant="outline" className="text-xs">
+                          {(currentConversation as any).userAI.profile.name} v{(currentConversation as any).userAI.profile.version}
+                        </Badge>
+                      )}
+                      {currentConversation.scores && (
+                        <Badge variant="outline">
+                          Score: {currentConversation.scores.total}/100
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   
                   <ChatViewer 

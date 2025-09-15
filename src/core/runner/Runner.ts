@@ -21,7 +21,8 @@ export class Runner {
     xmlSystemSpec: string,
     knobsBase: any,
     niniOptions: any,
-    simulationMode: boolean = false
+    simulationMode: boolean = false,
+    userAIProfile?: any
   ): Promise<RunResult> {
     const conversations: Conversation[] = [];
 
@@ -33,7 +34,8 @@ export class Runner {
         knobsBase,
         niniOptions,
         simulationMode,
-        i // Use as seed
+        i, // Use as seed
+        userAIProfile
       );
       conversations.push(conversation);
     }
@@ -51,10 +53,11 @@ export class Runner {
     knobsBase: any,
     niniOptions: any,
     simulationMode: boolean,
-    seed: number
+    seed: number,
+    userAIProfile?: any
   ): Promise<Conversation> {
     const conversationId = generateId();
-    const userAI = createUserAI(scenario, seed);
+    const userAI = createUserAI(scenario, seed, userAIProfile);
     
     const conversation: Conversation = {
       id: conversationId,
