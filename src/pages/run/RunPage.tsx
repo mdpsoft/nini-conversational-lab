@@ -16,6 +16,7 @@ import { RunOptions } from "../../types/core";
 import { ChatViewer } from "../../components/ChatViewer";
 import { LintBadge } from "../../components/LintBadge";
 import { RuntimeDebugPanel } from "../../components/RuntimeDebugPanel";
+import { RunMetricsSummary } from "../../components/RunMetricsSummary";
 import { Runner } from "../../core/runner/Runner";
 import { QUICK_DEMO_CONFIG } from "../../utils/seeds";
 import { buildSystemPrompt } from "../../core/nini/prompt";
@@ -431,15 +432,16 @@ export default function RunPage() {
 
               <Separator />
 
-              {/* USERAI Profile Selection */}
-              <UserAIProfileSelector
-                selectedProfileIds={selectedProfileIds}
-                onSelectionChange={setSelectedProfileIds}
-                runMode={runMode}
-                onRunModeChange={setRunMode}
-                disabled={isRunning}
-              />
-
+              {/* Show Runtime Debug Toggle */}
+              <div className="flex items-center justify-between">
+                <Label htmlFor="runtime-debug">Show Runtime Debug</Label>
+                <Switch
+                  id="runtime-debug"
+                  checked={showRuntimeDebug}
+                  onCheckedChange={setShowRuntimeDebug}
+                />
+              </div>
+              
               <Separator />
 
               {/* USERAI Profile Selection */}
@@ -450,6 +452,8 @@ export default function RunPage() {
                 onRunModeChange={setRunMode}
                 disabled={isRunning}
               />
+
+              <Separator />
 
               <Separator />
 
@@ -617,18 +621,17 @@ export default function RunPage() {
 
                       {/* Runtime Debug Panel */}
                       <RuntimeDebugPanel
-                        beat={(currentConversation as any).runtime_debug?.beat}
-                        memory={(currentConversation as any).runtime_debug?.memory}
-                        transcript={(currentConversation as any).runtime_debug?.transcript}
-                        postProcess={(() => {
-                          // Get post-processing info from the last user turn
-                          const lastUserTurn = currentConversation.turns
-                            .filter(turn => turn.agent === 'user')
-                            .pop();
-                          return lastUserTurn?.meta?.postProcess;
-                        })()}
-                        isVisible={showRuntimeDebug}
-                        onToggle={setShowRuntimeDebug}
+                        debug={{
+                          beat: (currentConversation as any).runtime_debug?.beat,
+                          memory: (currentConversation as any).runtime_debug?.memory,
+                          postProcess: (() => {
+                            // Get post-processing info from the last user turn
+                            const lastUserTurn = currentConversation.turns
+                              .filter(turn => turn.agent === 'user')
+                              .pop();
+                            return lastUserTurn?.meta?.postProcess;
+                          })()
+                        }}
                       />
                     </div>
                   )}
@@ -636,6 +639,7 @@ export default function RunPage() {
                   <ChatViewer 
                     turns={currentConversation.turns} 
                     className="max-h-96 overflow-y-auto"
+                    showRuntimeDebug={showRuntimeDebug}
                   />
                 </div>
               ) : (

@@ -18,6 +18,21 @@ export interface Turn {
       questionCountAfter: number;
       strategy?: 'cut' | 'append' | 'rewrite';
     };
+    safety?: {
+      matched: string[];
+      escalated: boolean;
+      positions?: Array<{ start: number; end: number; phrase: string }>;
+    };
+    metrics?: {
+      chars: number;
+      paragraphs: number;
+      questions: number;
+      emotions: string[];
+      needs: string[];
+      boundaries: string[];
+    };
+    beat?: { name: string; index: number; total: number };
+    memory?: { facts: string[] };
   };
 }
 

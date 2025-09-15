@@ -7,6 +7,8 @@ import { generateId } from '../../utils/seeds';
 import { buildSystemPrompt } from '../nini/prompt';
 import { summarizeConversationMD } from '../nini/summarize';
 import { postProcessUserAIResponse } from '../userai/responsePostProcessor';
+import { applySafety } from '../safety/safetyHook';
+import { computeTurnMetrics, aggregateRunMetrics } from '../metrics/turnMetrics';
 
 export class Runner {
   private static readonly BENCHMARKS = {
@@ -122,13 +124,25 @@ export class Runner {
         );
 
         if (niniResponse.success) {
+          // Apply safety hook to Nini response
+          const safetyResult = applySafety(niniResponse.text, {
+            speaker: 'Nini',
+            lang: locale as 'es' | 'en',
+            globalSafety: knobsBase.safety
+          });
+
+          // Compute turn metrics
+          const turnMetrics = computeTurnMetrics(safetyResult.text, 'Nini', locale as 'es' | 'en');
+
           const niniTurn: Turn = {
             agent: 'nini',
-            text: niniResponse.text,
+            text: safetyResult.text,
             meta: {
-              chars: niniResponse.text.length,
+              chars: safetyResult.text.length,
               emoji_count: (niniResponse.meta as any)?.emoji_count || 0,
               crisis_active: (niniResponse.meta as any)?.crisis_active || false,
+              safety: safetyResult.flags,
+              metrics: turnMetrics,
             },
           };
 
@@ -161,12 +175,25 @@ export class Runner {
                 useSoftClosure: false,
               });
 
+              // Apply safety hook to USERAI response
+              const safetyResult = applySafety(postProcessed.text, {
+                speaker: 'USERAI',
+                lang: lang as 'es' | 'en',
+                profile: userAIProfile,
+                globalSafety: knobsBase.safety
+              });
+
+              // Compute turn metrics
+              const turnMetrics = computeTurnMetrics(safetyResult.text, 'USERAI', lang as 'es' | 'en');
+
               userTurn = {
                 agent: 'user',
-                text: postProcessed.text,
+                text: safetyResult.text,
                 meta: {
                   ...userAIResponse.meta,
                   postProcess: postProcessed.meta,
+                  safety: safetyResult.flags,
+                  metrics: turnMetrics,
                 }
               };
               conversation.turns.push(userTurn);
@@ -208,6 +235,10 @@ export class Runner {
     
     // Calculate scores
     conversation.scores = aggregateScores(conversation.lints);
+
+    // Aggregate run metrics
+    const runMetrics = aggregateRunMetrics(conversation.turns);
+    (conversation as any).runMetrics = runMetrics;
 
     // Generate summary
     const locale = scenario.language === 'mix' ? 'es' : scenario.language;

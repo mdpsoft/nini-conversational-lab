@@ -3,15 +3,17 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { User, Bot, AlertTriangle, Languages } from "lucide-react";
 import { countEmojis } from "../utils/emoji";
+import { RuntimeDebugPanel } from "./RuntimeDebugPanel";
 
 interface ChatViewerProps {
   turns: Turn[];
   lints?: Array<{ turnIndex: number; findings?: LintFinding[] }>;
   targetLanguage?: string;
   className?: string;
+  showRuntimeDebug?: boolean;
 }
 
-export function ChatViewer({ turns, lints, targetLanguage = 'ES', className }: ChatViewerProps) {
+export function ChatViewer({ turns, lints, targetLanguage = 'ES', className, showRuntimeDebug = false }: ChatViewerProps) {
   const getLanguageMixFindings = (turnIndex: number) => {
     if (!lints) return [];
     
@@ -121,6 +123,21 @@ export function ChatViewer({ turns, lints, targetLanguage = 'ES', className }: C
                 </>
               )}
             </div>
+            
+            {/* Runtime Debug Panel for turns with debug data */}
+            {showRuntimeDebug && (turn.meta?.beat || turn.meta?.memory || turn.meta?.postProcess || turn.meta?.safety || turn.meta?.metrics) && (
+              <div className="mt-2">
+                <RuntimeDebugPanel 
+                  debug={{
+                    beat: turn.meta?.beat,
+                    memory: turn.meta?.memory,
+                    postProcess: turn.meta?.postProcess,
+                    safety: turn.meta?.safety,
+                    metrics: turn.meta?.metrics,
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
         );
