@@ -10,6 +10,7 @@ import ScenariosPage from "./pages/scenarios/ScenariosPage";
 import RunPage from "./pages/run/RunPage";
 import ResultsPage from "./pages/results/ResultsPage";
 import RunRepositoryPage from "./pages/repository/RunRepositoryPage";
+import LLMLogsPage from "./pages/llm-logs/LLMLogsPage";
 import { useSettingsStore } from "./store/settings";
 import { useScenariosStore } from "./store/scenarios";
 
@@ -42,6 +43,7 @@ const App = () => {
               <Route path="run" element={<RunPage />} />
               <Route path="results" element={<ResultsPage />} />
               <Route path="repository" element={<RunRepositoryPage />} />
+              <Route path="llm-logs" element={<LLMLogsPage />} />
               <Route 
                 index
                 element={
