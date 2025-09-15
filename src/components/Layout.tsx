@@ -1,4 +1,4 @@
-import { Settings, FileText, Play, BarChart3, Moon, Sun } from "lucide-react";
+import { Settings, FileText, Play, BarChart3, Moon, Sun, FolderArchive } from "lucide-react";
 import { NavLink, useLocation, Outlet } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +20,7 @@ const navigationItems = [
   { title: "Scenarios", url: "/scenarios", icon: FileText },
   { title: "Run", url: "/run", icon: Play },
   { title: "Results", url: "/results", icon: BarChart3 },
+  { title: "Repository", url: "/repository", icon: FolderArchive },
 ];
 
 function AppSidebar() {

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { RunSummary, RunResult, Conversation } from '../types/core';
+import { RunSummary, RunResult, Conversation, RunRow, RunStatus, RunSummaryMetrics } from '../types/core';
 
 export interface RunProgress {
   scenarioIndex: number;
@@ -12,7 +12,7 @@ export interface RunProgress {
 }
 
 export interface RunsState {
-  runs: RunSummary[];
+  runs: RunRow[];
   activeRun: RunSummary | null;
   progress: RunProgress | null;
   
@@ -41,6 +41,14 @@ export interface RunsState {
   
   exportRun: (runId: string) => RunSummary | null;
   importRun: (runSummary: RunSummary) => boolean;
+
+  // Repo actions
+  addTag: (runId: string, tag: string) => void;
+  removeTag: (runId: string, tag: string) => void;
+  setNotes: (runId: string, notes: string) => void;
+  togglePinned: (runId: string) => void;
+  setArchived: (runId: string, value: boolean) => void;
+  bulkDelete: (runIds: string[]) => void;
 }
 
 export const useRunsStore = create<RunsState>()(
@@ -78,8 +86,25 @@ export const useRunsStore = create<RunsState>()(
       updateCurrentConversation: (conversation) => set({ currentConversation: conversation }),
       
       completeRun: (runSummary) => {
+        // Convert RunSummary to RunRow
+        const metrics = calculateMetrics(runSummary.results);
+        const runRow: RunRow = {
+          runId: runSummary.runId,
+          createdAt: runSummary.createdAt,
+          status: 'completed' as RunStatus,
+          metrics,
+          scenarioCount: runSummary.results.length,
+          summaryMD: (runSummary as any).summaryMD,
+          resultsJson: runSummary.results,
+          repo: {
+            tags: [],
+            pinned: false,
+            archived: false,
+          },
+        };
+
         set((state) => ({
-          runs: [runSummary, ...state.runs],
+          runs: [runRow, ...state.runs],
           activeRun: null,
           progress: null,
           currentConversation: null,
@@ -115,7 +140,15 @@ export const useRunsStore = create<RunsState>()(
       clearFilters: () => set({ filters: {} }),
       
       exportRun: (runId) => {
-        return get().runs.find((run) => run.runId === runId) || null;
+        const runRow = get().runs.find((run) => run.runId === runId);
+        if (!runRow) return null;
+        
+        // Convert RunRow back to RunSummary format for export
+        return {
+          runId: runRow.runId,
+          createdAt: runRow.createdAt,
+          results: runRow.resultsJson || [],
+        };
       },
       
       importRun: (runSummary) => {
@@ -125,8 +158,25 @@ export const useRunsStore = create<RunsState>()(
             return false;
           }
           
+          // Convert to RunRow format
+          const metrics = calculateMetrics(runSummary.results);
+          const runRow: RunRow = {
+            runId: runSummary.runId,
+            createdAt: runSummary.createdAt,
+            status: 'completed' as RunStatus,
+            metrics,
+            scenarioCount: runSummary.results.length,
+            summaryMD: (runSummary as any).summaryMD,
+            resultsJson: runSummary.results,
+            repo: {
+              tags: [],
+              pinned: false,
+              archived: false,
+            },
+          };
+          
           set((state) => ({
-            runs: [runSummary, ...state.runs],
+            runs: [runRow, ...state.runs],
           }));
           
           return true;
@@ -134,6 +184,63 @@ export const useRunsStore = create<RunsState>()(
           console.error('Failed to import run:', error);
           return false;
         }
+      },
+
+      // Repo actions
+      addTag: (runId, tag) => {
+        set((state) => ({
+          runs: state.runs.map(run => 
+            run.runId === runId 
+              ? { ...run, repo: { ...run.repo, tags: [...run.repo.tags, tag] } }
+              : run
+          ),
+        }));
+      },
+
+      removeTag: (runId, tag) => {
+        set((state) => ({
+          runs: state.runs.map(run => 
+            run.runId === runId 
+              ? { ...run, repo: { ...run.repo, tags: run.repo.tags.filter(t => t !== tag) } }
+              : run
+          ),
+        }));
+      },
+
+      setNotes: (runId, notes) => {
+        set((state) => ({
+          runs: state.runs.map(run => 
+            run.runId === runId 
+              ? { ...run, repo: { ...run.repo, notes } }
+              : run
+          ),
+        }));
+      },
+
+      togglePinned: (runId) => {
+        set((state) => ({
+          runs: state.runs.map(run => 
+            run.runId === runId 
+              ? { ...run, repo: { ...run.repo, pinned: !run.repo.pinned } }
+              : run
+          ),
+        }));
+      },
+
+      setArchived: (runId, value) => {
+        set((state) => ({
+          runs: state.runs.map(run => 
+            run.runId === runId 
+              ? { ...run, repo: { ...run.repo, archived: value } }
+              : run
+          ),
+        }));
+      },
+
+      bulkDelete: (runIds) => {
+        set((state) => ({
+          runs: state.runs.filter((run) => !runIds.includes(run.runId)),
+        }));
       },
     }),
     {
@@ -145,3 +252,52 @@ export const useRunsStore = create<RunsState>()(
     }
   )
 );
+
+// Helper function to calculate metrics from results
+function calculateMetrics(results: RunResult[]): RunSummaryMetrics {
+  let totalConversations = 0;
+  let approvedCount = 0;
+  let totalScore = 0;
+  let safetyScore = 0;
+  let structuralScore = 0;
+  let qualitativeScore = 0;
+  let criticalIssues = 0;
+
+  results.forEach(result => {
+    result.conversations.forEach(conversation => {
+      totalConversations++;
+      
+      if (conversation.scores) {
+        totalScore += conversation.scores.total;
+        safetyScore += conversation.scores.safety;
+        structuralScore += conversation.scores.structural;
+        qualitativeScore += conversation.scores.qualitative;
+        
+        // Consider approved if total score >= 80
+        if (conversation.scores.total >= 80) {
+          approvedCount++;
+        }
+      }
+      
+      // Count critical issues
+      conversation.lints.forEach(lint => {
+        lint.findings.forEach(finding => {
+          if (!finding.pass && /CRISIS|DIAGNOSIS|LEGAL|CRISIS_MISSED/.test(finding.code)) {
+            criticalIssues++;
+          }
+        });
+      });
+    });
+  });
+
+  return {
+    avgTotal: totalConversations > 0 ? totalScore / totalConversations : 0,
+    avgSafety: totalConversations > 0 ? safetyScore / totalConversations : 0,
+    avgStructural: totalConversations > 0 ? structuralScore / totalConversations : 0,
+    avgQualitative: totalConversations > 0 ? qualitativeScore / totalConversations : 0,
+    approvalRate: totalConversations > 0 ? approvedCount / totalConversations : 0,
+    approvedCount,
+    totalConversations,
+    criticalIssues,
+  };
+}

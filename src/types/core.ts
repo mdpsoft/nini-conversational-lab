@@ -93,6 +93,67 @@ export interface RunResult {
   conversations: Conversation[];
 }
 
+export type RunStatus = 'completed' | 'aborted' | 'failed';
+
+export interface RunRepoMeta {
+  tags: string[];
+  notes?: string;
+  pinned?: boolean;   // baseline
+  archived?: boolean;
+}
+
+export interface RunSummaryMetrics {
+  avgTotal: number;
+  avgSafety: number;
+  avgStructural: number;
+  avgQualitative: number;
+  approvalRate: number;          // 0..1
+  approvedCount: number;
+  totalConversations: number;
+  criticalIssues: number;        // count of critical lint incidents
+  avgTurns?: number;
+  avgChars?: number;
+  avgLatencyMs?: number;
+  errorCount?: number;
+  tokensPrompt?: number;
+  tokensCompletion?: number;
+  costUsd?: number;
+}
+
+export interface RunRow {
+  runId: string;
+  createdAt: string;        // ISO
+  createdBy?: string;
+
+  // Context/config snapshot
+  promptHash?: string;
+  xmlVersion?: string;
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  simulationMode?: boolean;
+  deviceLocale?: string;
+  scenarioIds?: string[];
+  scenarioCount?: number;
+  conversationsPerScenario?: number;
+  maxTurns?: number;
+  knobVariants?: { label: string }[];
+
+  // Aggregates
+  status: RunStatus;
+  metrics: RunSummaryMetrics;
+
+  // Artifacts
+  summaryMD?: string;
+  resultsJson?: any;
+  promptRendered?: string;
+  guardsApplied?: string[];
+  logs?: string[];
+
+  // Repo meta
+  repo: RunRepoMeta;
+}
+
 export interface RunSummary {
   runId: string;
   createdAt: string; // ISO string

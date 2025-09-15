@@ -23,7 +23,7 @@ import { Download, Info, FileText } from "lucide-react";
 import { MetricsCard } from "../../components/MetricsCard";
 import { ChatViewer } from "../../components/ChatViewer";
 import { LintBadge } from "../../components/LintBadge";
-import { exportRun } from "../../utils/export";
+import { exportRun as exportRunUtils } from "../../utils/export";
 import { isConversationApproved, calculateScenarioApproval } from "../../core/scoring/score";
 import { useToast } from "@/hooks/use-toast";
 import ResultsExplainer from "./components/ResultsExplainer";
@@ -106,7 +106,11 @@ export default function ResultsPage() {
   const handleExportRun = () => {
     if (!currentRun) return;
     
-    exportRun(currentRun);
+    const runSummary = exportRunFromStore(currentRun.runId);
+    if (!runSummary) return;
+    
+    exportRunUtils(runSummary);
+    
     toast({
       title: "Export completed",
       description: "Run data has been downloaded",
@@ -383,7 +387,7 @@ export default function ResultsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  {currentRun.results?.map((scenarioResult: any, index: number) => {
+                  {currentRun.resultsJson?.map((scenarioResult: any, index: number) => {
                     const scenarioMetrics = getScenarioMetrics(scenarioResult);
                     return (
                       <div key={scenarioResult.scenarioId || index} className="border rounded-lg p-4">
@@ -483,7 +487,7 @@ export default function ResultsPage() {
                       </span>
                       {/* Language badge */}
                       <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                        runs.find(r => r.runId === selectedRun)?.results
+                        runs.find(r => r.runId === selectedRun)?.resultsJson
                           ?.find(res => res.conversations?.some(c => c.id === selectedConversation.id))
                           ?.scenarioId ? 
                           'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
@@ -588,7 +592,7 @@ export default function ResultsPage() {
                       <ChatViewer 
                         turns={selectedConversation.turns} 
                         lints={selectedConversation.lints}
-                        targetLanguage={runs.find(r => r.runId === selectedRun)?.results
+                        targetLanguage={runs.find(r => r.runId === selectedRun)?.resultsJson
                           ?.find(res => res.conversations?.some(c => c.id === selectedConversation.id))
                           ?.scenarioId?.includes('english') ? 'EN' : 'ES'}
                       />
