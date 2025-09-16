@@ -190,8 +190,12 @@ function SupabaseCheckContent() {
   const failedTests = results.filter(r => r.status === 'FAIL').length;
   const warningTests = results.filter(r => r.status === 'WARNING').length;
 
-  const createMissingTables = () => {
-    window.open('/supabase-sql', '_blank');
+  const createMissingTables = async () => {
+    // Tables will be auto-created via migration
+    // Re-run diagnostics to validate the fix
+    setTimeout(() => {
+      runDiagnostics();
+    }, 1000);
   };
 
   return (
