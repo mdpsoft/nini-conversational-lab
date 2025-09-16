@@ -13,6 +13,7 @@ import { UserMenu } from "@/components/UserMenu";
 import { CollapsibleNav } from "./CollapsibleNav";
 import { DataSourceSelector } from "@/components/DataSourceSelector";
 import { useDevAutoLogin } from "@/hooks/useDevAutoLogin";
+import { useDataSource } from "@/state/dataSource";
 
 function AppSidebar() {
   return (
@@ -30,6 +31,21 @@ function AppSidebar() {
 function Layout() {
   const { darkMode, setDarkMode } = useSettingsStore();
   const { devAutoLoginUsed } = useDevAutoLogin();
+  const { state } = useDataSource();
+  
+  const isRealtimeDisabled = localStorage.getItem('realtimeDisabled') === 'true';
+  const isSafeBoot = localStorage.getItem('safe-boot') === 'true';
+
+  const clearSafeBoot = () => {
+    localStorage.removeItem('safe-boot');
+    localStorage.removeItem('realtimeDisabled');
+    window.location.reload();
+  };
+
+  const enableRealtime = () => {
+    localStorage.removeItem('realtimeDisabled');
+    window.location.reload();
+  };
 
   return (
     <SidebarProvider>
@@ -44,6 +60,41 @@ function Layout() {
             </div>
             
             <div className="flex items-center gap-4">
+              {/* UI Smoke Indicator */}
+              <div data-testid="ui-smoke" className="px-2 py-1 text-xs opacity-70 bg-muted rounded">
+                UI OK · {state.source} · Realtime {isRealtimeDisabled ? 'Off' : 'On'}
+              </div>
+              
+              {/* SafeBoot indicator and controls */}
+              {isSafeBoot && (
+                <div className="flex items-center gap-2">
+                  <Badge variant="destructive" className="text-xs">SafeBoot</Badge>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={clearSafeBoot}
+                    className="text-xs h-6"
+                  >
+                    Clear SafeBoot
+                  </Button>
+                </div>
+              )}
+              
+              {/* Realtime controls */}
+              {isRealtimeDisabled && !isSafeBoot && (
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-xs">Realtime: Off (auto)</Badge>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={enableRealtime}
+                    className="text-xs h-6"
+                  >
+                    Enable Realtime
+                  </Button>
+                </div>
+              )}
+              
               {/* Data source selector */}
               <DataSourceSelector />
               

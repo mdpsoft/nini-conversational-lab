@@ -41,115 +41,135 @@ export async function ensureRunBelongsToUser(runId: string, userId: string): Pro
 }
 
 export function subscribeLogs(userId: string, handlers: RealtimeHandlers) {
-  const channel = supabase.channel(`rt-${userId}`, { 
-    config: { 
-      presence: { key: userId } 
-    } 
-  });
-
-  console.log('Setting up Realtime subscriptions for user:', userId);
-
-  // Events inserts/updates (filtered by owner)
-  if (handlers.onEventInsert) {
-    channel.on(
-      'postgres_changes',
-      { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'events', 
-        filter: `owner=eq.${userId}` 
-      },
-      (payload) => {
-        console.log('Realtime event INSERT:', payload.new);
-        handlers.onEventInsert?.(payload.new);
-      }
-    );
+  // Circuit breaker: check if realtime is disabled
+  if (localStorage.getItem('realtimeDisabled') === 'true') {
+    console.log('Realtime disabled by circuit breaker - skipping subscription');
+    return () => {}; // No-op cleanup function
   }
 
-  if (handlers.onEventUpdate) {
-    channel.on(
-      'postgres_changes',
-      { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'events', 
-        filter: `owner=eq.${userId}` 
-      },
-      (payload) => {
-        console.log('Realtime event UPDATE:', payload.new);
-        handlers.onEventUpdate?.(payload.new);
-      }
-    );
-  }
+  let channel: any;
+  
+  try {
+    channel = supabase.channel(`rt-${userId}`, { 
+      config: { 
+        presence: { key: userId } 
+      } 
+    });
 
-  // Runs inserts/updates (filtered by owner)
-  if (handlers.onRunInsert) {
-    channel.on(
-      'postgres_changes',
-      { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'runs', 
-        filter: `owner=eq.${userId}` 
-      },
-      (payload) => {
-        console.log('Realtime run INSERT:', payload.new);
-        handlers.onRunInsert?.(payload.new);
-      }
-    );
-  }
+    console.log('Setting up Realtime subscriptions for user:', userId);
 
-  if (handlers.onRunUpdate) {
-    channel.on(
-      'postgres_changes',
-      { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'runs', 
-        filter: `owner=eq.${userId}` 
-      },
-      (payload) => {
-        console.log('Realtime run UPDATE:', payload.new);
-        handlers.onRunUpdate?.(payload.new);
-      }
-    );
-  }
+    // Events inserts/updates (filtered by owner)
+    if (handlers.onEventInsert) {
+      channel.on(
+        'postgres_changes',
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'events', 
+          filter: `owner=eq.${userId}` 
+        },
+        (payload) => {
+          console.log('Realtime event INSERT:', payload.new);
+          handlers.onEventInsert?.(payload.new);
+        }
+      );
+    }
 
-  // Turns inserts (no direct owner filter - validate in client)
-  if (handlers.onTurnInsert) {
-    channel.on(
-      'postgres_changes',
-      { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'turns' 
-      },
-      async (payload) => {
-        console.log('Realtime turn INSERT:', payload.new);
-        
-        // Validate ownership through run_id
-        if (payload.new.run_id) {
-          const ownerOk = await ensureRunBelongsToUser(payload.new.run_id, userId);
-          if (ownerOk) {
-            handlers.onTurnInsert?.(payload.new);
-          } else {
-            console.log('Turn ignored - not owned by current user:', payload.new.run_id);
+    if (handlers.onEventUpdate) {
+      channel.on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'events', 
+          filter: `owner=eq.${userId}` 
+        },
+        (payload) => {
+          console.log('Realtime event UPDATE:', payload.new);
+          handlers.onEventUpdate?.(payload.new);
+        }
+      );
+    }
+
+    // Runs inserts/updates (filtered by owner)
+    if (handlers.onRunInsert) {
+      channel.on(
+        'postgres_changes',
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'runs', 
+          filter: `owner=eq.${userId}` 
+        },
+        (payload) => {
+          console.log('Realtime run INSERT:', payload.new);
+          handlers.onRunInsert?.(payload.new);
+        }
+      );
+    }
+
+    if (handlers.onRunUpdate) {
+      channel.on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'runs', 
+          filter: `owner=eq.${userId}` 
+        },
+        (payload) => {
+          console.log('Realtime run UPDATE:', payload.new);
+          handlers.onRunUpdate?.(payload.new);
+        }
+      );
+    }
+
+    // Turns inserts (no direct owner filter - validate in client)
+    if (handlers.onTurnInsert) {
+      channel.on(
+        'postgres_changes',
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'turns' 
+        },
+        async (payload) => {
+          console.log('Realtime turn INSERT:', payload.new);
+          
+          // Validate ownership through run_id
+          if (payload.new.run_id) {
+            const ownerOk = await ensureRunBelongsToUser(payload.new.run_id, userId);
+            if (ownerOk) {
+              handlers.onTurnInsert?.(payload.new);
+            } else {
+              console.log('Turn ignored - not owned by current user:', payload.new.run_id);
+            }
           }
         }
+      );
+    }
+
+    // Subscribe to channel
+    channel.subscribe((status) => {
+      console.log('Realtime subscription status:', status);
+      if (status === 'CHANNEL_ERROR' || status === 'CLOSED') {
+        console.warn('Realtime connection failed - enabling circuit breaker');
+        localStorage.setItem('realtimeDisabled', 'true');
       }
-    );
+    });
+
+    // Return cleanup function
+    return () => {
+      console.log('Cleaning up Realtime subscriptions');
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  } catch (error) {
+    console.error('Failed to set up Realtime subscriptions:', error);
+    localStorage.setItem('realtimeDisabled', 'true');
+    return () => {}; // No-op cleanup function
   }
-
-  // Subscribe to channel
-  channel.subscribe((status) => {
-    console.log('Realtime subscription status:', status);
-  });
-
-  // Return cleanup function
-  return () => {
-    console.log('Cleaning up Realtime subscriptions');
-    supabase.removeChannel(channel);
-  };
 }
 
 // Test realtime connectivity by inserting a test event

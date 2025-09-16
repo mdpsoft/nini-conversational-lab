@@ -19,7 +19,14 @@ const DataSourceContext = createContext<DataSourceContextType | null>(null);
 
 const STORAGE_KEY = 'ntb:data-source';
 
+// Default data source detection with SafeBoot support
 async function detectDefaultDataSource(): Promise<DataSourceState> {
+  // SafeBoot: if safe-boot is enabled, force local mode
+  if (localStorage.getItem('safe-boot') === 'true') {
+    console.log('SafeBoot active - forcing local data source');
+    return { source: 'local', reason: 'SafeBoot mode (fallback)' };
+  }
+
   // Check if guest mode is enabled first
   if (isGuestModeEnabled()) {
     return { source: 'guest', reason: 'Guest mode enabled' };
@@ -54,6 +61,10 @@ async function detectDefaultDataSource(): Promise<DataSourceState> {
     }
   } catch (error) {
     console.warn('Failed to check Supabase auth:', error);
+    // SafeBoot: If Supabase fails during boot, enable SafeBoot mode
+    localStorage.setItem('safe-boot', 'true');
+    console.log('Supabase failed during boot - enabling SafeBoot mode');
+    return { source: 'local', reason: 'SafeBoot mode (Supabase failed)' };
   }
 
   // Fallback to local
@@ -158,10 +169,10 @@ export function DataSourceProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useDataSource() {
+export function useDataSource() {  
   const context = useContext(DataSourceContext);
   if (!context) {
-    throw new Error('useDataSource must be used within a DataSourceProvider');
+    throw new Error('DataSourceProvider missing (boot order)');
   }
   return context;
 }

@@ -68,7 +68,21 @@ function BlankTestPageContent() {
     };
 
     try {
-      // 1. Root React tree mounted
+      // 1. Boot marker check
+      const bootMarker = document.getElementById('boot-mounted');
+      const hasBootMarker = bootMarker && bootMarker.getAttribute('data-ok') === 'true';
+      addResult(
+        'Boot Marker',
+        hasBootMarker ? 'PASS' : 'FAIL',
+        hasBootMarker 
+          ? 'Boot marker present and OK'
+          : bootMarker 
+            ? 'Boot marker exists but not OK'
+            : 'Boot marker element not found'
+      );
+
+      // 2. Root React tree mounted
+      // 2. Root React tree mounted
       const rootElement = document.getElementById('root');
       const hasChildren = rootElement && rootElement.children.length > 0;
       addResult(
@@ -79,7 +93,8 @@ function BlankTestPageContent() {
           : 'Root element missing or empty'
       );
 
-      // 2. Router resolving routes
+      // 3. Router resolving routes
+      // 3. Router resolving routes
       try {
         const currentPath = window.location.pathname;
         const validPaths = ['/', '/profiles', '/results', '/scenarios'];
@@ -93,7 +108,21 @@ function BlankTestPageContent() {
         addResult('Router Navigation', 'FAIL', `Router error: ${error}`);
       }
 
-      // 3. DataSourceContext available
+      // 4. SafeBoot status check
+      const isSafeBoot = localStorage.getItem('safe-boot') === 'true';
+      const isRealtimeDisabled = localStorage.getItem('realtimeDisabled') === 'true';
+      addResult(
+        'SafeBoot Status',
+        'PASS',
+        isSafeBoot 
+          ? 'SafeBoot mode active (fallback protection enabled)'
+          : isRealtimeDisabled
+            ? 'Realtime disabled (circuit breaker active)'
+            : 'Normal operation mode'
+      );
+
+      // 5. DataSourceContext available
+      // 5. DataSourceContext available
       try {
         const hasDataSource = !!dataSourceState;
         addResult(
@@ -107,7 +136,8 @@ function BlankTestPageContent() {
         addResult('DataSource Context', 'FAIL', `Context error: ${error}`);
       }
 
-      // 4. Profiles repository
+      // 6. Profiles repository
+      // 6. Profiles repository
       try {
         const repoStatus = isRepoReady ? 'Ready' : 'Loading';
         const profileCount = profiles?.length ?? 0;
@@ -124,7 +154,8 @@ function BlankTestPageContent() {
         addResult('Profiles Repository', 'FAIL', `Repository error: ${error}`);
       }
 
-      // 5. Supabase connectivity
+      // 7. Supabase connectivity
+      // 7. Supabase connectivity
       try {
         if (dataSourceState.source === 'supabase') {
           const { data, error } = await supabase.auth.getSession();
@@ -143,7 +174,8 @@ function BlankTestPageContent() {
         addResult('Supabase Connectivity', 'FAIL', `Supabase error: ${error}`);
       }
 
-      // 6. LocalStorage test
+      // 8. LocalStorage test
+      // 8. LocalStorage test
       try {
         const testKey = 'diagnostic_test_key';
         const testValue = 'test_value_' + Date.now();
@@ -162,7 +194,8 @@ function BlankTestPageContent() {
         addResult('LocalStorage Access', 'FAIL', `LocalStorage error: ${error}`);
       }
 
-      // 7. Recent console errors
+      // 9. Recent console errors
+      // 9. Recent console errors
       const recentErrors = consoleErrors.filter(e => Date.now() - e.timestamp < 5000);
       addResult(
         'Console Errors (5s)',
@@ -252,7 +285,7 @@ function BlankTestPageContent() {
       )}
 
       {/* Control buttons */}
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex items-center gap-2 mb-6 flex-wrap">
         <Button
           onClick={runDiagnostics}
           disabled={isRunning}
@@ -267,14 +300,37 @@ function BlankTestPageContent() {
           size="sm"
           onClick={async () => {
             try {
-              await setDataSource(dataSourceState.source === 'supabase' ? 'local' : 'supabase');
+              await setDataSource('local');
             } catch (error) {
-              console.error('Failed to switch data source:', error);
+              console.error('Failed to switch to local:', error);
             }
           }}
         >
           <Database className="h-4 w-4 mr-2" />
-          Switch Data Source
+          Switch to Local
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            localStorage.setItem('realtimeDisabled', 'true');
+            window.location.reload();
+          }}
+        >
+          Disable Realtime
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            localStorage.removeItem('safe-boot');
+            localStorage.removeItem('realtimeDisabled');
+            window.location.reload();
+          }}
+        >
+          Clear SafeBoot
         </Button>
         
         <Button
@@ -284,6 +340,15 @@ function BlankTestPageContent() {
         >
           <ExternalLink className="h-4 w-4 mr-2" />
           Error Log
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate('/supabase-validate')}
+        >
+          <ExternalLink className="h-4 w-4 mr-2" />
+          Supabase Validator
         </Button>
       </div>
 

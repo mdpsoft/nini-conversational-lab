@@ -44,7 +44,8 @@ export function BehaviorTab({ data, errors, onChange }: BehaviorTabProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-[540px] max-h-[70vh] overflow-y-auto px-4 pb-4">
+      <div className="space-y-6">
       <div>
         <h3 className="text-lg font-medium mb-4">Verbosidad</h3>
         
@@ -178,6 +179,7 @@ export function BehaviorTab({ data, errors, onChange }: BehaviorTabProps) {
             ))}
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

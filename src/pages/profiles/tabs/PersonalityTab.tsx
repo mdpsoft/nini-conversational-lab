@@ -63,7 +63,8 @@ export function PersonalityTab({ data, errors, onChange }: PersonalityTabProps) 
   const isPresetMode = data.presetSource === 'preset' && !isUnlocked;
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-[540px] max-h-[70vh] overflow-y-auto px-4 pb-4">
+      <div className="space-y-6">
       {/* Personality Preset Selector */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -218,6 +219,7 @@ export function PersonalityTab({ data, errors, onChange }: PersonalityTabProps) 
             disabled={isPresetMode}
           />
         </div>
+      </div>
       </div>
     </div>
   );

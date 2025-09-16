@@ -95,7 +95,7 @@ const App = () => {
                     <Navigate to="/scenarios" replace />
                 } 
               />
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<div className="p-6 text-sm">404 — route not found</div>} />
             </Route>
           </Routes>
         </BrowserRouter>
