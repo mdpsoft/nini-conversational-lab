@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { AlertTriangle, CheckCircle, XCircle, Wifi, WifiOff, Database, Plus, Edit, Trash2, Clock } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle, Wifi, WifiOff, Database, Plus, Edit, Trash2, Clock, Zap, RotateCcw } from 'lucide-react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
@@ -33,6 +33,8 @@ function RealtimeCheckContent() {
   const [events, setEvents] = useState<RealtimeEvent[]>([]);
   const [connections, setConnections] = useState<ConnectionStatus[]>([]);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [realtimeTestStatus, setRealtimeTestStatus] = useState<'IDLE' | 'RUNNING' | 'PASS' | 'FAIL'>('IDLE');
+  const [realtimeTestDetails, setRealtimeTestDetails] = useState<string>('');
   const [testData, setTestData] = useState({
     profileName: '',
     scenarioName: '',
@@ -211,6 +213,75 @@ function RealtimeCheckContent() {
       toast.success('Test event created');
     } catch (error: any) {
       toast.error(`Failed to create event: ${error.message}`);
+    }
+  };
+
+  const runRealtimeTest = async () => {
+    if (!isAuthenticated) {
+      toast.error('Please authenticate to test realtime');
+      return;
+    }
+
+    setRealtimeTestStatus('RUNNING');
+    setRealtimeTestDetails('Starting realtime test...');
+    
+    try {
+      // Setup realtime listener
+      const testId = Math.random().toString(36).substr(2, 9);
+      let receivedEvent = false;
+      
+      const channel = supabase
+        .channel('realtime-selftest')
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'events' 
+        }, (payload) => {
+          const eventData = payload.new as any;
+          if (eventData?.event_type === 'SELFTEST' && eventData?.payload?.test_id === testId) {
+            receivedEvent = true;
+            setRealtimeTestStatus('PASS');
+            setRealtimeTestDetails(`✓ Realtime event received at ${new Date().toLocaleTimeString()}`);
+            toast.success('Realtime test PASSED');
+          }
+        })
+        .subscribe((status) => {
+          console.log('Realtime test channel status:', status);
+        });
+
+      // Wait for subscription to be ready
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      setRealtimeTestDetails('Emitting test event...');
+      
+      // Create test event
+      const { error } = await supabase
+        .from('events')
+        .insert({
+          event_type: 'SELFTEST',
+          payload: { 
+            test_id: testId,
+            timestamp: new Date().toISOString(),
+            source: 'realtime-check'
+          }
+        });
+
+      if (error) throw error;
+
+      // Wait up to 3 seconds for realtime event
+      setTimeout(() => {
+        if (!receivedEvent) {
+          setRealtimeTestStatus('FAIL');
+          setRealtimeTestDetails('❌ No realtime event received within 3 seconds');
+          toast.error('Realtime test FAILED - no event received');
+        }
+        supabase.removeChannel(channel);
+      }, 3000);
+
+    } catch (error: any) {
+      setRealtimeTestStatus('FAIL');
+      setRealtimeTestDetails(`❌ Test error: ${error.message}`);
+      toast.error(`Realtime test error: ${error.message}`);
     }
   };
 
@@ -433,6 +504,78 @@ function RealtimeCheckContent() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Live Realtime Test */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="text-base font-medium">Live Realtime Test</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Test realtime functionality by emitting a test event and verifying it's received within 3 seconds.
+            </p>
+            
+            <div className="flex gap-2">
+              <Button 
+                onClick={runRealtimeTest}
+                disabled={realtimeTestStatus === 'RUNNING' || !isAuthenticated}
+                className="flex-1"
+              >
+                {realtimeTestStatus === 'RUNNING' ? (
+                  <>
+                    <RotateCcw className="h-4 w-4 mr-2 animate-spin" />
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-4 w-4 mr-2" />
+                    Run Realtime Test
+                  </>
+                )}
+              </Button>
+              
+              {realtimeTestStatus !== 'IDLE' && (
+                <Button 
+                  onClick={() => {
+                    setRealtimeTestStatus('IDLE');
+                    setRealtimeTestDetails('');
+                  }}
+                  variant="outline"
+                >
+                  Reset
+                </Button>
+              )}
+            </div>
+            
+            {realtimeTestDetails && (
+              <div className={`p-3 rounded-lg text-sm ${
+                realtimeTestStatus === 'PASS' ? 'bg-green-50 text-green-800' :
+                realtimeTestStatus === 'FAIL' ? 'bg-red-50 text-red-800' :
+                'bg-blue-50 text-blue-800'
+              }`}>
+                <div className="flex items-center gap-2">
+                  {realtimeTestStatus === 'PASS' && <CheckCircle className="h-4 w-4" />}
+                  {realtimeTestStatus === 'FAIL' && <XCircle className="h-4 w-4" />}
+                  {realtimeTestStatus === 'RUNNING' && <RotateCcw className="h-4 w-4 animate-spin" />}
+                  <span className="font-medium">
+                    {realtimeTestStatus === 'PASS' ? 'PASS' : 
+                     realtimeTestStatus === 'FAIL' ? 'FAIL' : 'RUNNING'}
+                  </span>
+                </div>
+                <p className="mt-1">{realtimeTestDetails}</p>
+              </div>
+            )}
+            
+            {!isAuthenticated && (
+              <div className="p-3 bg-yellow-50 text-yellow-800 rounded-lg text-sm">
+                <AlertTriangle className="h-4 w-4 inline mr-2" />
+                Please sign in to run the realtime test.
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Live Events */}
       <Card className="mt-6">

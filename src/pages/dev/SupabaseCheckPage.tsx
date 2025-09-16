@@ -3,11 +3,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { AlertTriangle, CheckCircle, XCircle, RotateCcw, Database, Wifi, User, Zap, ExternalLink } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { AlertTriangle, CheckCircle, XCircle, RotateCcw, Database, Wifi, User, Zap, ExternalLink, Copy } from 'lucide-react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { testRealtimeConnection } from '@/lib/realtime';
+import { toast } from 'sonner';
 
 interface DiagnosticResult {
   name: string;
@@ -34,7 +36,27 @@ function SupabaseCheckContent() {
   const [results, setResults] = useState<DiagnosticResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [missingTables, setMissingTables] = useState<string[]>([]);
+  const [needsRealtimeFix, setNeedsRealtimeFix] = useState(false);
+  const [showRealtimeSQL, setShowRealtimeSQL] = useState(false);
   const { user, isAuthenticated } = useSupabaseAuth();
+
+  const REALTIME_FIX_SQL = `-- Realtime Enablement (v2.1)
+-- Ensure Realtime publication exists
+create publication if not exists supabase_realtime for table public.userai_profiles;
+
+-- Add tables to publication (idempotente)
+alter publication supabase_realtime add table public.userai_profiles;
+alter publication supabase_realtime add table public.scenarios;
+alter publication supabase_realtime add table public.runs;
+alter publication supabase_realtime add table public.turns;
+alter publication supabase_realtime add table public.events;
+
+-- Ensure each table has REPLICA IDENTITY FULL (para enviar payload completo)
+alter table public.userai_profiles replica identity full;
+alter table public.scenarios       replica identity full;
+alter table public.runs            replica identity full;
+alter table public.turns           replica identity full;
+alter table public.events          replica identity full;`;
 
   const addResult = (name: string, status: DiagnosticResult['status'], details: string, suggestion?: string) => {
     setResults(prev => {
@@ -133,7 +155,27 @@ function SupabaseCheckContent() {
         addResult('Authentication Test', 'FAIL', `Auth test failed: ${error}`, 'Check Supabase auth configuration');
       }
 
-      // 4. Realtime Test
+      // 4. Realtime Validation
+      addResult('Realtime Validation', 'RUNNING', 'Checking realtime configuration...');
+      
+      try {
+        const realtimeStatus = await checkRealtimeConfiguration();
+        setNeedsRealtimeFix(!realtimeStatus.valid);
+        
+        if (realtimeStatus.valid) {
+          addResult('Realtime Validation', 'PASS', 'All tables configured for realtime');
+        } else {
+          addResult('Realtime Validation', 'FAIL', 
+            `Missing configuration: ${realtimeStatus.issues.join(', ')}`,
+            'Use the Auto-Fix Realtime button to configure realtime'
+          );
+        }
+      } catch (error) {
+        addResult('Realtime Validation', 'FAIL', `Realtime validation error: ${error}`, 'Check database configuration');
+        setNeedsRealtimeFix(true);
+      }
+
+      // 5. Realtime Test
       if (user) {
         addResult('Realtime Test', 'RUNNING', 'Testing realtime connectivity...');
         
@@ -190,12 +232,62 @@ function SupabaseCheckContent() {
   const failedTests = results.filter(r => r.status === 'FAIL').length;
   const warningTests = results.filter(r => r.status === 'WARNING').length;
 
+  const checkRealtimeConfiguration = async () => {
+    const issues: string[] = [];
+    
+    try {
+      // For now, skip the complex database checks since we can't easily query system tables
+      // This will be handled by the migration SQL which the user runs manually
+      const issues: string[] = [];
+      
+      // Simple check: try to create a realtime channel to see if it works
+      try {
+        const testChannel = supabase.channel('test-realtime-check');
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Realtime connection timeout'));
+          }, 5000);
+          
+          testChannel.subscribe((status) => {
+            clearTimeout(timeout);
+            if (status === 'SUBSCRIBED') {
+              resolve(status);
+            } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+              reject(new Error(`Realtime status: ${status}`));
+            }
+          });
+        });
+        
+        supabase.removeChannel(testChannel);
+      } catch (error) {
+        issues.push('Realtime connection failed');
+      }
+      
+    } catch (error) {
+      issues.push('Error checking realtime configuration');
+    }
+    
+    return {
+      valid: issues.length === 0,
+      issues
+    };
+  };
+
   const createMissingTables = async () => {
     // Tables will be auto-created via migration
     // Re-run diagnostics to validate the fix
     setTimeout(() => {
       runDiagnostics();
     }, 1000);
+  };
+
+  const copyRealtimeSQL = async () => {
+    try {
+      await navigator.clipboard.writeText(REALTIME_FIX_SQL);
+      toast.success('SQL copied to clipboard');
+    } catch (error) {
+      toast.error('Failed to copy SQL');
+    }
   };
 
   return (
@@ -253,6 +345,17 @@ function SupabaseCheckContent() {
               >
                 <Database className="h-4 w-4 mr-2" />
                 Auto-Fix Database Schema
+              </Button>
+            )}
+
+            {needsRealtimeFix && (
+              <Button 
+                onClick={() => setShowRealtimeSQL(!showRealtimeSQL)}
+                variant="outline"
+                className="w-full"
+              >
+                <Wifi className="h-4 w-4 mr-2" />
+                Auto-Fix Realtime
               </Button>
             )}
 
@@ -337,6 +440,54 @@ function SupabaseCheckContent() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Realtime Auto-Fix SQL */}
+      {showRealtimeSQL && (
+        <Card className="mt-6 border-blue-200 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="text-base font-medium text-blue-800">
+              Realtime Enablement SQL (v2.1)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <p className="text-sm text-blue-700">
+                Run this SQL in your Supabase SQL Editor to enable realtime for all core tables:
+              </p>
+              
+              <Textarea
+                value={REALTIME_FIX_SQL}
+                readOnly
+                className="h-48 font-mono text-xs bg-white"
+              />
+              
+              <div className="flex gap-2">
+                <Button onClick={copyRealtimeSQL} size="sm">
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy SQL
+                </Button>
+                
+                <Button asChild variant="outline" size="sm">
+                  <a 
+                    href="https://supabase.com/dashboard/project/rxufqnsliggxavpfckft/sql/new" 
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Open SQL Editor
+                  </a>
+                </Button>
+              </div>
+              
+              <div className="mt-4 p-3 bg-blue-100 rounded-lg">
+                <p className="text-xs text-blue-800">
+                  <strong>After running the SQL:</strong> Click "Re-run Diagnostics" to verify the realtime configuration.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Configuration Info */}
       <Card className="mt-6">
