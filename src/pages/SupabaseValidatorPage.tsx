@@ -42,13 +42,13 @@ export default function SupabaseValidatorPage() {
       status: "idle",
       hint: "User must be signed in to test RLS policies"
     },
-    {
-      id: "table-exists",
-      label: "Table Exists",
-      icon: Database,
-      status: "idle",
-      hint: "userai_profiles table should exist and be accessible"
-    },
+      {
+        id: "userai-profiles-table",
+        label: "USERAI Profiles Table",
+        icon: Database,
+        status: "idle",
+        hint: "userai_profiles table should exist and be accessible"
+      },
     {
       id: "rls-permissions",
       label: "RLS Write/Delete",
@@ -126,8 +126,8 @@ export default function SupabaseValidatorPage() {
     }
   };
 
-  const runTableExistsCheck = async () => {
-    updateCheckStatus("table-exists", "running");
+  const runUserAIProfilesTableCheck = async () => {
+    updateCheckStatus("userai-profiles-table", "running");
     
     try {
       const { data, error } = await (supabase as any)
@@ -137,12 +137,12 @@ export default function SupabaseValidatorPage() {
       
       if (error) throw error;
       
-      updateCheckStatus("table-exists", "success", "Table accessible (RLS may limit rows)");
-      toast({ title: "✅ Table Exists", description: "userai_profiles table found and accessible" });
+      updateCheckStatus("userai-profiles-table", "success", "USERAI profiles table ready");
+      toast({ title: "✅ USERAI Profiles Table", description: "userai_profiles table found and accessible" });
     } catch (error: any) {
-      updateCheckStatus("table-exists", "error", `Table error: ${error.message}`);
+      updateCheckStatus("userai-profiles-table", "error", `Table error: ${error.message}`);
       toast({ 
-        title: "❌ Table Exists", 
+        title: "❌ USERAI Profiles Table", 
         description: `Cannot access userai_profiles: ${error.message}`,
         variant: "destructive" 
       });
@@ -306,7 +306,10 @@ export default function SupabaseValidatorPage() {
         await runAuthCheck();
         break;
       case "table-exists":
-        await runTableExistsCheck();
+        await runUserAIProfilesTableCheck();
+        break;
+      case "userai-profiles-table":
+        await runUserAIProfilesTableCheck();
         break;
       case "rls-permissions":
         await runRLSPermissionsCheck();
@@ -332,7 +335,7 @@ export default function SupabaseValidatorPage() {
     setChecks(prev => prev.map(check => ({ ...check, status: "idle" as CheckStatus, message: undefined })));
     
     // Run checks sequentially
-    const checkIds = ["env-vars", "auth", "table-exists", "rls-permissions", "repo-wiring", "selector-preview", "realtime-channel"];
+    const checkIds = ["env-vars", "auth", "table-exists", "userai-profiles-table", "rls-permissions", "repo-wiring", "selector-preview", "realtime-channel"];
     
     for (const checkId of checkIds) {
       await runSingleCheck(checkId);
@@ -452,6 +455,12 @@ export default function SupabaseValidatorPage() {
                     {check.id === "auth" && !user && check.status === "error" && (
                       <Button size="sm" variant="outline" onClick={handleSignIn}>
                         Sign In
+                      </Button>
+                    )}
+                    
+                    {check.id === "userai-profiles-table" && check.status === "error" && (
+                      <Button size="sm" variant="outline" onClick={() => window.open('/supabase-sql', '_blank')}>
+                        Run Fix
                       </Button>
                     )}
                     

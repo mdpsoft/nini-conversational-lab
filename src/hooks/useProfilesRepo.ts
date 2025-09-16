@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { UserAIProfile } from '@/store/profiles';
-import { ProfilesRepo, DataSource, resolveProfilesRepoAsync } from '@/data/useraiProfiles';
+import { ProfilesRepo, DataSource, resolveProfilesRepoAsync, SchemaError, LocalProfilesRepo } from '@/data/useraiProfiles';
 import { useSupabaseAuth } from './useSupabaseAuth';
 
 export function useProfilesRepo() {
@@ -10,6 +10,7 @@ export function useProfilesRepo() {
   const [profiles, setProfiles] = useState<UserAIProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [schemaError, setSchemaError] = useState<boolean>(false);
 
   // Resolve repository when auth state changes
   useEffect(() => {
@@ -21,6 +22,7 @@ export function useProfilesRepo() {
         setRepo(resolvedRepo);
         setDataSource(source);
         setError(null);
+        setSchemaError(false);
       } catch (err) {
         console.error('Failed to resolve profiles repository:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
@@ -40,10 +42,27 @@ export function useProfilesRepo() {
         const loadedProfiles = await repo.list();
         setProfiles(loadedProfiles);
         setError(null);
+        setSchemaError(false);
       } catch (err) {
         console.error('Failed to load profiles:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load profiles');
-        setProfiles([]);
+        if (err instanceof SchemaError) {
+          setSchemaError(true);
+          // Fall back to local storage
+          const localRepo = new LocalProfilesRepo();
+          setRepo(localRepo);
+          setDataSource('Local');
+          try {
+            const localProfiles = await localRepo.list();
+            setProfiles(localProfiles);
+            setError(null);
+          } catch (localErr) {
+            setError(localErr instanceof Error ? localErr.message : 'Failed to load local profiles');
+            setProfiles([]);
+          }
+        } else {
+          setError(err instanceof Error ? err.message : 'Failed to load profiles');
+          setProfiles([]);
+        }
       } finally {
         setLoading(false);
       }
@@ -59,9 +78,25 @@ export function useProfilesRepo() {
       const loadedProfiles = await repo.list();
       setProfiles(loadedProfiles);
       setError(null);
+      setSchemaError(false);
     } catch (err) {
       console.error('Failed to refresh profiles:', err);
-      setError(err instanceof Error ? err.message : 'Failed to refresh profiles');
+      if (err instanceof SchemaError) {
+        setSchemaError(true);
+        // Fall back to local storage
+        const localRepo = new LocalProfilesRepo();
+        setRepo(localRepo);
+        setDataSource('Local');
+        try {
+          const localProfiles = await localRepo.list(); 
+          setProfiles(localProfiles);
+          setError(null);
+        } catch (localErr) {
+          setError(localErr instanceof Error ? localErr.message : 'Failed to load local profiles');
+        }
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to refresh profiles');
+      }
     }
   };
 
@@ -104,12 +139,29 @@ export function useProfilesRepo() {
     }
   };
 
+  const retrySchemaSetup = async () => {
+    setSchemaError(false);
+    setError(null);
+    
+    try {
+      const { repo: resolvedRepo, source } = await resolveProfilesRepoAsync();
+      setRepo(resolvedRepo);
+      setDataSource(source);
+      await refreshProfiles();
+    } catch (err) {
+      console.error('Failed to retry schema setup:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    }
+  };
+
   return {
     profiles,
     dataSource,
     loading: loading || authLoading,
     error,
+    schemaError,
     refreshProfiles,
+    retrySchemaSetup,
     upsertProfile,
     removeProfile,
     bulkUpsertProfiles,

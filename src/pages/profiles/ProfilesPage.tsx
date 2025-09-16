@@ -8,7 +8,8 @@ import { ProfileEditor } from "./ProfileEditor";
 import { RuntimePromptViewer } from "./RuntimePromptViewer";
 import { ImportProfilesModal } from "./ImportProfilesModal";
 import { CompareProfilesView } from "./CompareProfilesView";
-import { MigrationModal } from "@/components/MigrationModal";
+import { SchemaErrorBanner } from '@/components/SchemaErrorBanner';
+import { MigrationModal } from '@/components/MigrationModal';
 import { useProfilesRepo } from "@/hooks/useProfilesRepo";
 import { LocalProfilesRepo } from "@/data/useraiProfiles";
 import { exportProfiles, downloadFile, generateExportFilename } from "@/utils/profileImportExport";
@@ -132,7 +133,9 @@ function UpdatedProfilesPage() {
     dataSource, 
     loading, 
     error,
+    schemaError,
     refreshProfiles,
+    retrySchemaSetup,
     upsertProfile,
     removeProfile,
     bulkUpsertProfiles
@@ -334,6 +337,11 @@ function UpdatedProfilesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Schema error banner */}
+      {schemaError && (
+        <SchemaErrorBanner onRetry={retrySchemaSetup} />
+      )}
+      
       <div className="flex justify-between items-center">
         <div>
           <div className="flex items-center gap-2">

@@ -13,6 +13,13 @@ export interface ProfilesRepo {
 
 export type DataSource = 'Supabase' | 'Local';
 
+export class SchemaError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SchemaError';
+  }
+}
+
 // Supabase implementation
 export class SupabaseProfilesRepo implements ProfilesRepo {
   async list(): Promise<UserAIProfile[]> {
@@ -22,6 +29,10 @@ export class SupabaseProfilesRepo implements ProfilesRepo {
       .order('updated_at', { ascending: false });
 
     if (error) {
+      if (error.message.includes("Could not find the table 'public.userai_profiles'") || 
+          error.code === 'PGRST106') {
+        throw new SchemaError(`Table 'public.userai_profiles' not found`);
+      }
       throw new Error(`Failed to fetch profiles: ${error.message}`);
     }
 
@@ -36,6 +47,10 @@ export class SupabaseProfilesRepo implements ProfilesRepo {
       .maybeSingle();
 
     if (error) {
+      if (error.message.includes("Could not find the table 'public.userai_profiles'") || 
+          error.code === 'PGRST106') {
+        throw new SchemaError(`Table 'public.userai_profiles' not found`);
+      }
       throw new Error(`Failed to fetch profile: ${error.message}`);
     }
 
@@ -55,6 +70,10 @@ export class SupabaseProfilesRepo implements ProfilesRepo {
       .upsert(supabaseProfile);
 
     if (error) {
+      if (error.message.includes("Could not find the table 'public.userai_profiles'") || 
+          error.code === 'PGRST106') {
+        throw new SchemaError(`Table 'public.userai_profiles' not found`);
+      }
       throw new Error(`Failed to save profile: ${error.message}`);
     }
   }
@@ -66,6 +85,10 @@ export class SupabaseProfilesRepo implements ProfilesRepo {
       .eq('id', id);
 
     if (error) {
+      if (error.message.includes("Could not find the table 'public.userai_profiles'") || 
+          error.code === 'PGRST106') {
+        throw new SchemaError(`Table 'public.userai_profiles' not found`);
+      }
       throw new Error(`Failed to delete profile: ${error.message}`);
     }
   }
@@ -83,6 +106,10 @@ export class SupabaseProfilesRepo implements ProfilesRepo {
       .upsert(supabaseProfiles);
 
     if (error) {
+      if (error.message.includes("Could not find the table 'public.userai_profiles'") || 
+          error.code === 'PGRST106') {
+        throw new SchemaError(`Table 'public.userai_profiles' not found`);
+      }
       throw new Error(`Failed to bulk save profiles: ${error.message}`);
     }
   }
