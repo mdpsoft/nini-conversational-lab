@@ -9,8 +9,9 @@ import { Download, RefreshCw, AlertTriangle, CheckCircle, XCircle } from 'lucide
 import { toast } from 'sonner';
 import { scanRepoFor, categorizeMatch, assessRisk, generateSuggestedAction } from '@/utils/repoScanner';
 import { AuditMatch, AuditSummary, RelationshipType } from '@/types/scenario-audit';
-import { Scenario } from '@/types/core';
+import { Scenario } from '@/types/scenario';
 import { useScenariosStore } from '@/store/scenarios';
+import { getRelationshipTypeLabel } from '@/types/scenario';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function ScenarioAuditPage() {
@@ -111,13 +112,13 @@ export default function ScenarioAuditPage() {
       const mappingPreview = allScenarios.slice(0, 20).map(scenario => ({
         id: scenario.id,
         name: scenario.name,
-        currentTopic: scenario.topic,
-        suggestedRelationshipType: mapTopicToRelationshipType(scenario.topic),
-        currentAttachmentStyle: scenario.attachment_style
+        currentTopic: (scenario as any).topic || 'N/A', // Legacy field
+        suggestedRelationshipType: scenario.relationshipType || mapTopicToRelationshipType((scenario as any).topic),
+        currentAttachmentStyle: (scenario as any).attachment_style || 'N/A' // Legacy field
       }));
       
       setScenarioMigrationPreview({
-        scenarios: allScenarios,
+        scenarios: allScenarios as any,
         mappingPreview
       });
       
@@ -129,10 +130,10 @@ export default function ScenarioAuditPage() {
         storedScenarios: {
           local: localScenarios.length,
           supabase: supabaseCount,
-          withAttachmentStyle: allScenarios.filter(s => s.attachment_style).length,
-          withTopic: allScenarios.filter(s => s.topic).length,
-          withRelationshipType: 0, // Currently none exist
-          withCrisisSignals: allScenarios.filter(s => s.crisis_signals && s.crisis_signals !== 'none').length,
+          withAttachmentStyle: allScenarios.filter(s => (s as any).attachment_style).length,
+          withTopic: allScenarios.filter(s => (s as any).topic).length,
+          withRelationshipType: allScenarios.filter(s => s.relationshipType).length,
+          withCrisisSignals: allScenarios.filter(s => s.crisisSignals && s.crisisSignals !== 'none').length,
         }
       });
       

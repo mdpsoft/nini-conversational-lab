@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Scenario, ScenarioSchema } from '../types/core';
+import { Scenario, ScenarioSchema } from '../types/scenario';
 import { generateId } from '../utils/seeds';
 import { getDemoScenarios } from '../utils/seeds';
+import { migrateLegacyScenario } from '../utils/scenarioMigration';
 
 export interface ScenariosState {
   scenarios: Scenario[];
@@ -98,13 +99,16 @@ export const useScenariosStore = create<ScenariosState>()(
       
       clearSelection: () => set({ selectedIds: [] }),
       
-      importScenarios: (scenarios: Scenario[]) => {
+      importScenarios: (scenarios: any[]) => {
         const errors: string[] = [];
         const validScenarios: Scenario[] = [];
         
         scenarios.forEach((scenario, index) => {
           try {
-            const validated = ScenarioSchema.parse(scenario);
+            // First try to migrate legacy scenarios
+            const migrated = migrateLegacyScenario(scenario);
+            const validated = ScenarioSchema.parse(migrated);
+            
             // Check for duplicate IDs and ensure full Scenario type
             const existingScenario = get().scenarios.find((s) => s.id === validated.id);
             const completeScenario: Scenario = existingScenario 
@@ -136,7 +140,9 @@ export const useScenariosStore = create<ScenariosState>()(
       
       initializeDemoData: () => {
         const demoScenarios = getDemoScenarios();
-        set({ scenarios: demoScenarios });
+        // Migrate demo scenarios to new format
+        const migratedScenarios = demoScenarios.map(scenario => migrateLegacyScenario(scenario as any));
+        set({ scenarios: migratedScenarios });
       },
     }),
     {
