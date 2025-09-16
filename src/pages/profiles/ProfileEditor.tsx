@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserAIProfile } from "@/store/profiles";
+import { AutoTab } from "./tabs/AutoTab";
 import { OverviewTab } from "./tabs/OverviewTab";
 import { PersonalityTab } from "./tabs/PersonalityTab";
 import { FocusTab } from "./tabs/FocusTab";
@@ -62,6 +63,10 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave }: ProfileEdi
       escalation: "remind_safety_protocol",
     },
     version: 1,
+    // v2.1 defaults with migration
+    personalityPreset: 'secure_supportive',
+    presetSource: 'custom',
+    strictness: 'balanced',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -103,6 +108,10 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave }: ProfileEdi
           escalation: "remind_safety_protocol",
         },
         version: 1,
+        // v2.1 defaults with migration
+        personalityPreset: 'secure_supportive',
+        presetSource: 'custom',
+        strictness: 'balanced',
       });
     }
   }, [isOpen, profileId, profiles]);
@@ -249,8 +258,9 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave }: ProfileEdi
         <div className="flex-1 flex gap-6 overflow-hidden">
           {/* Left side - Form */}
           <div className="flex-1 flex flex-col">
-            <Tabs defaultValue="overview" className="flex-1 flex flex-col">
-              <TabsList className="grid grid-cols-6 w-full">
+            <Tabs defaultValue="auto" className="flex-1 flex flex-col">
+              <TabsList className="grid grid-cols-7 w-full">
+                <TabsTrigger value="auto">Auto</TabsTrigger>
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="personality">Personality</TabsTrigger>
                 <TabsTrigger value="focus">Focus</TabsTrigger>
@@ -260,6 +270,14 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave }: ProfileEdi
               </TabsList>
 
               <div className="flex-1 overflow-auto mt-4">
+                <TabsContent value="auto" className="mt-0">
+                  <AutoTab
+                    data={formData}
+                    errors={errors}
+                    onChange={updateFormData}
+                  />
+                </TabsContent>
+
                 <TabsContent value="overview" className="mt-0">
                   <OverviewTab
                     data={formData}

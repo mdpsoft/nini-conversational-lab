@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { UserAIProfile } from "@/store/profiles";
+import { getAgeBadgeText, getPersonalityPresets } from "@/utils/profilePresets";
 
 interface ProfilePreviewProps {
   profile: UserAIProfile;
@@ -51,6 +52,9 @@ function generatePreviewText(profile: UserAIProfile): string {
 
 export function ProfilePreview({ profile }: ProfilePreviewProps) {
   const previewText = generatePreviewText(profile);
+  const presets = getPersonalityPresets();
+  const selectedPreset = presets.find(p => p.id === profile.personalityPreset);
+  const ageBadgeText = getAgeBadgeText(profile.ageYears, profile.ageGroup);
   
   return (
     <Card className="h-fit sticky top-4">
@@ -65,6 +69,39 @@ export function ProfilePreview({ profile }: ProfilePreviewProps) {
         </div>
         
         <div className="space-y-2">
+          {/* Age & Age Group */}
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Edad:</span>
+            <Badge variant="outline" className="text-xs">{ageBadgeText}</Badge>
+          </div>
+
+          {/* Personality Preset */}
+          {selectedPreset && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Preset:</span>
+              <div className="flex items-center gap-1">
+                <Badge variant="outline" className="text-xs flex items-center gap-1">
+                  <span>{selectedPreset.emoji}</span>
+                  {selectedPreset.name}
+                </Badge>
+                {profile.presetSource === 'custom' && (
+                  <Badge variant="secondary" className="text-xs">Custom</Badge>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Strictness */}
+          {profile.strictness && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Firmeza:</span>
+              <Badge variant="outline" className="text-xs">
+                {profile.strictness === 'soft' ? 'Suave' : 
+                 profile.strictness === 'balanced' ? 'Equilibrado' : 'Firme'}
+              </Badge>
+            </div>
+          )}
+          
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Tono:</span>
             <span>{profile.tone || "Sin definir"}</span>

@@ -27,6 +27,12 @@ export interface UserAIProfile {
     escalation: 'remind_safety_protocol' | 'escalate_specialist' | string;
   };
   version: number;
+  // v2.1 fields
+  ageYears?: number; // 13..99
+  ageGroup?: 'teen' | 'young_adult' | 'adult' | 'mature' | 'senior' | null;
+  personalityPreset?: 'secure_supportive' | 'empathetic_reflective' | 'direct_solution' | 'playful_optimistic' | 'analytical_calm' | 'stoic_brief' | 'anxious_reassurance' | 'avoidant_low_disclosure' | null;
+  strictness?: 'soft' | 'balanced' | 'firm';
+  presetSource?: 'preset' | 'custom';
 }
 
 interface ProfilesStore {
@@ -77,6 +83,10 @@ const mockProfiles: UserAIProfile[] = [
       ban_phrases: ["es culpa tuya", "no sirves"],
       escalation: "remind_safety_protocol",
     },
+    // v2.1 defaults with migration
+    personalityPreset: 'secure_supportive',
+    presetSource: 'custom',
+    strictness: 'balanced',
     version: 1
   },
   {
@@ -109,6 +119,10 @@ const mockProfiles: UserAIProfile[] = [
       ban_phrases: ["dependiente", "necesitas ayuda"],
       escalation: "escalate_specialist",
     },
+    // v2.1 defaults with migration
+    personalityPreset: 'secure_supportive',
+    presetSource: 'custom',
+    strictness: 'balanced',
     version: 1
   },
   {
@@ -141,6 +155,10 @@ const mockProfiles: UserAIProfile[] = [
       ban_phrases: ["cálmate", "exagerado"],
       escalation: "Recordar que las emociones intensas son válidas",
     },
+    // v2.1 defaults with migration
+    personalityPreset: 'secure_supportive',
+    presetSource: 'custom',
+    strictness: 'balanced',
     version: 1
   }
 ];

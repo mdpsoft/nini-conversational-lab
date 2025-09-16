@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
 import { Search, X, User, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserAIProfile } from "@/store/profiles";
 import { useNavigate } from "react-router-dom";
 import { useProfilesRepo } from "@/hooks/useProfilesRepo";
+import { getAgeBadgeText } from "@/utils/profilePresets";
 
 export type RunMode = "single" | "batch";
 
@@ -180,6 +181,11 @@ export function UserAIProfileSelector({
                           <Badge variant="outline" className="text-xs shrink-0">
                             v{profile.version}
                           </Badge>
+                          {(profile.ageYears || profile.ageGroup) && (
+                            <Badge variant="secondary" className="text-xs shrink-0">
+                              {getAgeBadgeText(profile.ageYears, profile.ageGroup)}
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                           {profile.description}
@@ -236,6 +242,11 @@ export function UserAIProfileSelector({
               >
                 <span className="text-xs">
                   {profile.name} v{profile.version}
+                  {(profile.ageYears || profile.ageGroup) && (
+                    <span className="ml-1 opacity-75">
+                      ({getAgeBadgeText(profile.ageYears, profile.ageGroup)})
+                    </span>
+                  )}
                 </span>
                 <Button
                   variant="ghost"
