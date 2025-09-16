@@ -1,24 +1,27 @@
 import { useState, useEffect } from 'react';
 import { UserAIProfile } from '@/store/profiles';
-import { ProfilesRepo, DataSource, resolveProfilesRepoAsync, SchemaError, LocalProfilesRepo } from '@/data/useraiProfiles';
+import { ProfilesRepo, DataSource, SchemaError, LocalProfilesRepo } from '@/data/useraiProfiles';
+import { resolveProfilesRepo } from '@/data/resolvers';
+import { useDataSource } from '@/state/dataSource';
 import { useSupabaseAuth } from './useSupabaseAuth';
 
 export function useProfilesRepo() {
   const { isAuthenticated, loading: authLoading } = useSupabaseAuth();
+  const { state: dataSourceState } = useDataSource();
   const [repo, setRepo] = useState<ProfilesRepo | null>(null);
-  const [dataSource, setDataSource] = useState<DataSource>('Local');
+  const [dataSource, setDataSource] = useState<DataSource>('local');
   const [profiles, setProfiles] = useState<UserAIProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [schemaError, setSchemaError] = useState<boolean>(false);
 
-  // Resolve repository when auth state changes
+  // Resolve repository when data source or auth state changes
   useEffect(() => {
     if (authLoading) return;
 
-    const resolveRepo = async () => {
+    const resolveRepo = () => {
       try {
-        const { repo: resolvedRepo, source } = await resolveProfilesRepoAsync();
+        const { repo: resolvedRepo, source } = resolveProfilesRepo(dataSourceState.source);
         setRepo(resolvedRepo);
         setDataSource(source);
         setError(null);
@@ -30,7 +33,15 @@ export function useProfilesRepo() {
     };
 
     resolveRepo();
-  }, [isAuthenticated, authLoading]);
+    
+    // Listen for data source changes
+    const handleDataSourceChange = () => {
+      resolveRepo();
+    };
+
+    window.addEventListener('data-source-changed', handleDataSourceChange);
+    return () => window.removeEventListener('data-source-changed', handleDataSourceChange);
+  }, [dataSourceState.source, isAuthenticated, authLoading]);
 
   // Load profiles when repository changes
   useEffect(() => {
@@ -144,7 +155,7 @@ export function useProfilesRepo() {
     setError(null);
     
     try {
-      const { repo: resolvedRepo, source } = await resolveProfilesRepoAsync();
+      const { repo: resolvedRepo, source } = resolveProfilesRepo(dataSourceState.source);
       setRepo(resolvedRepo);
       setDataSource(source);
       await refreshProfiles();

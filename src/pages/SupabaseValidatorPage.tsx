@@ -1,90 +1,91 @@
-import { useState } from "react";
-import { CheckCircle, XCircle, Clock, RefreshCw, Database, Shield, Settings, User, Users, Radio } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { AlertCircle, CheckCircle, Database, RefreshCw, User } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useDataSource } from '@/state/dataSource';
 import { useToast } from "@/hooks/use-toast";
-import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
-import { useProfilesRepo } from "@/hooks/useProfilesRepo";
-import { supabase } from "@/integrations/supabase/client";
-import { UserAIProfile } from "@/store/profiles";
-import { testRealtimeConnection } from "@/lib/realtime";
 
-type CheckStatus = "idle" | "running" | "success" | "error";
-
-interface ValidationCheck {
+interface ValidationResult {
   id: string;
-  label: string;
-  icon: React.ComponentType<any>;
-  status: CheckStatus;
+  name: string;
+  status: 'pending' | 'success' | 'error';
   message?: string;
-  hint?: string;
 }
 
 export default function SupabaseValidatorPage() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [validationResults, setValidationResults] = useState<ValidationResult[]>([]);
+  const { state: dataSourceState, getRepoHealth } = useDataSource();
   const { toast } = useToast();
-  const { user, signIn } = useSupabaseAuth();
-  const { profiles, dataSource } = useProfilesRepo();
-  
-  const [checks, setChecks] = useState<ValidationCheck[]>([
-    {
-      id: "env-vars",
-      label: "Environment Variables",
-      icon: Settings,
-      status: "idle",
-      hint: "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY should be set"
-    },
-    {
-      id: "auth",
-      label: "Authentication",
-      icon: User,
-      status: "idle",
-      hint: "User must be signed in to test RLS policies"
-    },
-      {
-        id: "userai-profiles-table",
-        label: "USERAI Profiles Table",
-        icon: Database,
-        status: "idle",
-        hint: "userai_profiles table should exist and be accessible"
-      },
-    {
-      id: "rls-permissions",
-      label: "RLS Write/Delete",
-      icon: Shield,
-      status: "idle",
-      hint: "RLS policies should allow insert and delete for authenticated user"
-    },
-    {
-      id: "repo-wiring",
-      label: "Repository Wiring",
-      icon: RefreshCw,
-      status: "idle",
-      hint: "ProfilesRepo should resolve to correct provider (Supabase/Local)"
-    },
-    {
-      id: "selector-preview",
-      label: "Run Tests Selector",
-      icon: Users,
-      status: "idle",
-      hint: "Profile selector should load profiles from the active repository"
-    },
-    {
-      id: "realtime-channel",
-      label: "Realtime Channel",
-      icon: Radio,
-      status: "idle",
-      hint: "Realtime subscriptions should work with test event roundtrip"
+
+  // Auto-refresh health on mount and data source changes
+  useEffect(() => {
+    if (dataSourceState.source === 'supabase') {
+      runValidation();
     }
-  ]);
+  }, [dataSourceState.source]);
+  
+  const runValidation = async () => {
+    setIsLoading(true);
+    setValidationResults([]);
 
-  const [isRunningAll, setIsRunningAll] = useState(false);
+    try {
+      // Check authentication
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      setValidationResults(prev => [...prev, {
+        id: 'auth',
+        name: 'Authentication',
+        status: authError ? 'error' : 'success',
+        message: authError ? authError.message : `Authenticated as ${authData.user?.email || 'user'}`
+      }]);
 
-  const updateCheckStatus = (id: string, status: CheckStatus, message?: string) => {
-    setChecks(prev => prev.map(check => 
-      check.id === id ? { ...check, status, message } : check
-    ));
+      // Check tables
+      const tablesToCheck = ['userai_profiles', 'runs', 'turns', 'events'];
+      for (const table of tablesToCheck) {
+        try {
+          const { error } = await (supabase as any).from(table).select('*').limit(1);
+          setValidationResults(prev => [...prev, {
+            id: table,
+            name: `Table: ${table}`,
+            status: error ? 'error' : 'success',
+            message: error ? error.message : 'Table accessible'
+          }]);
+        } catch (err) {
+          setValidationResults(prev => [...prev, {
+            id: table,
+            name: `Table: ${table}`,
+            status: 'error',  
+            message: `Failed to check table: ${err}`
+          }]);
+        }
+      }
+
+      // Get repository health
+      if (dataSourceState.source === 'supabase') {
+        const health = await getRepoHealth();
+        setValidationResults(prev => [...prev, {
+          id: 'repo-health',
+          name: 'Repository Health',
+          status: health.ok ? 'success' : 'error',
+          message: health.ok ? 'All repositories healthy' : health.errors.join(', ')
+        }]);
+      }
+
+      toast({
+        title: "Validation Complete",
+        description: "Supabase validation finished"
+      });
+    } catch (error) {
+      toast({
+        title: "Validation Failed",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const runEnvVarsCheck = async () => {

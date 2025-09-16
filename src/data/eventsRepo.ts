@@ -1,7 +1,17 @@
-import { supabase } from '@/integrations/supabase/client';
-import { isGuestModeEnabled } from '@/hooks/useGuestMode';
+import { resolveEventsRepo } from './resolvers';
 
 export type EventLevel = "INFO" | "WARN" | "ERROR" | "DEBUG";
+
+// Global repository instance - will be updated when data source changes
+let eventsRepo = resolveEventsRepo('local');
+
+// Listen for data source changes
+if (typeof window !== 'undefined') {
+  window.addEventListener('data-source-changed', (e) => {
+    const { source } = (e as CustomEvent).detail;
+    eventsRepo = resolveEventsRepo(source);
+  });
+}
 
 export async function logEvent(evt: {
   level: EventLevel;
@@ -16,38 +26,5 @@ export async function logEvent(evt: {
   state?: "OPEN" | "ACK" | "RESOLVED";
   tags?: string[];
 }): Promise<void> {
-  // In guest mode, just log to console
-  if (isGuestModeEnabled()) {
-    console.log('Guest mode event:', evt);
-    return;
-  }
-
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    // If not authenticated, skip logging to Supabase
-    console.log('Event not logged to Supabase (not authenticated):', evt);
-    return;
-  }
-
-  const { error } = await (supabase as any)
-    .from('events')
-    .insert({
-      owner: user.id,
-      level: evt.level,
-      type: evt.type,
-      severity: evt.severity,
-      trace_id: evt.traceId,
-      run_id: evt.runId,
-      turn_index: evt.turnIndex,
-      scenario_id: evt.scenarioId,
-      profile_id: evt.profileId,
-      meta: evt.meta,
-      state: evt.state || 'OPEN',
-      tags: evt.tags,
-    });
-
-  if (error) {
-    console.error(`Failed to log event: ${error.message}`, evt);
-  }
+  return eventsRepo.logEvent(evt);
 }
