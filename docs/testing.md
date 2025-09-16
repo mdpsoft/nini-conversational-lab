@@ -90,6 +90,20 @@ expectEventLogged('user_action')
 await expectFadeIn(element)
 ```
 
+## Coverage Thresholds
+
+This project enforces coverage quality gates:
+
+- **Global thresholds**: 60% lines/functions/statements, 50% branches
+- **Utils folder**: 80% lines/functions/statements, 70% branches
+
+Running `npm run test` will fail if coverage falls below these thresholds. The CI pipeline will also fail if thresholds are not met, preventing merges of undertested code.
+
+Check coverage locally:
+```bash
+npm run test  # Shows coverage summary and fails if thresholds not met
+```
+
 ## Best Practices
 
 1. Use descriptive test names
