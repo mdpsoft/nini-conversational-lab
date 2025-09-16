@@ -76,6 +76,9 @@ const App = () => {
                 <Route path="dev/realtime-check" element={<RealtimeCheckPage />} />
               )}
               {isDevMode && (
+                <Route path="dev/realtime-debug" element={<RealtimeDebugPage />} />
+              )}
+              {isDevMode && (
                 <Route path="dev/express-check" element={<ExpressCheckPage />} />
               )}
               {isDevMode && (

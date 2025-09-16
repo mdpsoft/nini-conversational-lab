@@ -60,36 +60,22 @@ function RealtimeDebugContent() {
           resolve({ success: false, error: 'WebSocket handshake timeout (5s)' });
         }, 5000);
 
-        const onOpen = () => {
+        // Test by creating a simple channel and checking if it connects
+        const testChannel = supabase.channel('diag_ws_test');
+        
+        testChannel.subscribe((status) => {
           clearTimeout(timeout);
-          resolve({ success: true });
-        };
-
-        const onError = (error: any) => {
-          clearTimeout(timeout);
-          resolve({ success: false, error: error?.message || 'WebSocket error' });
-        };
-
-        // Test realtime connection
-        if (supabase.realtime.isConnected()) {
-          clearTimeout(timeout);
-          resolve({ success: true });
-        } else {
-          supabase.realtime.connect();
-          
-          // Listen for connection events
-          const originalOnOpen = supabase.realtime.onOpen;
-          const originalOnError = supabase.realtime.onError;
-          
-          supabase.realtime.onOpen = onOpen;
-          supabase.realtime.onError = onError;
-          
-          // Restore original handlers after test
-          setTimeout(() => {
-            supabase.realtime.onOpen = originalOnOpen;
-            supabase.realtime.onError = originalOnError;
-          }, 6000);
-        }
+          if (status === 'SUBSCRIBED') {
+            resolve({ success: true });
+          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+            resolve({ success: false, error: `Connection status: ${status}` });
+          }
+        });
+        
+        // Cleanup
+        setTimeout(() => {
+          supabase.removeChannel(testChannel);
+        }, 6000);
       });
 
       if (wsHandshakeResult.success) {
@@ -169,10 +155,11 @@ function RealtimeDebugContent() {
       // Wait a moment for listener to be ready
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Try to emit diagnostic event
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('emit_diag_event', {
-        payload: { source: 'realtime-debug', timestamp: new Date().toISOString() }
-      });
+      // Try to emit diagnostic event using direct function call
+      const { data: rpcResult, error: rpcError } = await supabase
+        .rpc('emit_diag_event' as any, {
+          payload: { source: 'realtime-debug', timestamp: new Date().toISOString() }
+        });
 
       if (rpcError) {
         updateResult(2, { 

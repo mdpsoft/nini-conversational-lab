@@ -208,7 +208,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      emit_diag_event: {
+        Args: { payload?: Json }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
