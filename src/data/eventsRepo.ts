@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { isGuestModeEnabled } from '@/hooks/useGuestMode';
 
 export type EventLevel = "INFO" | "WARN" | "ERROR" | "DEBUG";
 
@@ -15,6 +16,12 @@ export async function logEvent(evt: {
   state?: "OPEN" | "ACK" | "RESOLVED";
   tags?: string[];
 }): Promise<void> {
+  // In guest mode, just log to console
+  if (isGuestModeEnabled()) {
+    console.log('Guest mode event:', evt);
+    return;
+  }
+
   const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) {

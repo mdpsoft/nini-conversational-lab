@@ -25,12 +25,16 @@ import SupabaseValidatorPage from "./pages/SupabaseValidatorPage";
 import SupabaseSQLPhase2Page from "./pages/SupabaseSQLPhase2Page";
 import { useSettingsStore } from "./store/settings";
 import { useScenariosStore } from "./store/scenarios";
+import { useDevAutoLogin } from "./hooks/useDevAutoLogin";
 
 const queryClient = new QueryClient();
 
 const App = () => {
   const { loadEncryptedKey, xmlSystemSpec } = useSettingsStore();
   const { scenarios, initializeDemoData } = useScenariosStore();
+  
+  // Initialize dev auto-login (will attempt login if configured)
+  useDevAutoLogin();
 
   useEffect(() => {
     // Load encrypted API key if available

@@ -7,6 +7,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Clock, User, FileText, Play, CheckCircle, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
+import { useGuestMode } from "@/hooks/useGuestMode";
 
 interface RunRecord {
   id: string;
@@ -23,15 +24,28 @@ export default function ConversationsPage() {
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useSupabaseAuth();
+  const { guestMode, toggleGuestMode } = useGuestMode();
 
   useEffect(() => {
-    if (!user) {
+    if (!user && !guestMode) {
       setLoading(false);
       return;
     }
 
     async function fetchRuns() {
       try {
+        if (guestMode) {
+          // In guest mode, show empty state since we don't have local run storage yet
+          setRuns([]);
+          setLoading(false);
+          return;
+        }
+
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+
         // Fetch runs with turn counts
         const { data: runsData, error } = await (supabase as any)
           .from('runs')
@@ -65,16 +79,30 @@ export default function ConversationsPage() {
     }
 
     fetchRuns();
-  }, [user]);
+  }, [user, guestMode]);
 
-  if (!user) {
+  if (!user && !guestMode) {
     return (
       <div className="container mx-auto p-6">
         <div className="text-center py-12">
           <h1 className="text-2xl font-bold mb-4">Sign in Required</h1>
-          <p className="text-muted-foreground">
-            Please sign in to view your conversation history.
+          <p className="text-muted-foreground mb-6">
+            Please sign in to view your conversation history, or continue as a guest to use local storage.
           </p>
+          <div className="flex justify-center gap-4">
+            <Button onClick={() => window.dispatchEvent(new CustomEvent('openUserMenu'))}>
+              Sign In
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => {
+                toggleGuestMode();
+                window.location.reload();
+              }}
+            >
+              Continue as Guest (Local Only)
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -103,9 +131,14 @@ export default function ConversationsPage() {
         <Card>
           <CardContent className="py-12 text-center">
             <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">No conversations yet</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              {guestMode ? "No local conversations yet" : "No conversations yet"}
+            </h3>
             <p className="text-muted-foreground mb-4">
-              Start your first test run to see conversations here.
+              {guestMode 
+                ? "Start your first test run to store conversations locally in your browser."
+                : "Start your first test run to see conversations here."
+              }
             </p>
             <Button asChild>
               <Link to="/run">

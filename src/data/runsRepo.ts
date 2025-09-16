@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { isGuestModeEnabled } from '@/hooks/useGuestMode';
 
 export async function createRun(payload: {
   scenarioId?: string;
@@ -6,6 +7,13 @@ export async function createRun(payload: {
   storyMode: boolean;
   maxTurns: number;
 }): Promise<{ runId: string }> {
+  // In guest mode, generate a local run ID
+  if (isGuestModeEnabled()) {
+    const runId = `local-run-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    console.log('Guest mode: Created local run ID:', runId);
+    return { runId };
+  }
+
   const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) {
@@ -32,6 +40,12 @@ export async function createRun(payload: {
 }
 
 export async function finishRun(runId: string): Promise<void> {
+  // In guest mode, just log the completion
+  if (isGuestModeEnabled()) {
+    console.log('Guest mode: Run finished:', runId);
+    return;
+  }
+
   const { error } = await (supabase as any)
     .from('runs')
     .update({ finished_at: new Date().toISOString() })

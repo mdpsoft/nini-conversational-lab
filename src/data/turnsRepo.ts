@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { isGuestModeEnabled } from '@/hooks/useGuestMode';
 
 export async function insertTurn(payload: {
   runId: string;
@@ -8,6 +9,13 @@ export async function insertTurn(payload: {
   beat?: any;
   shortMemory?: any;
 }): Promise<{ turnId: number }> {
+  // In guest mode, generate a local turn ID
+  if (isGuestModeEnabled()) {
+    const turnId = Date.now() + payload.turnIndex;
+    console.log('Guest mode: Created local turn ID:', turnId);
+    return { turnId };
+  }
+
   const { data, error } = await (supabase as any)
     .from('turns')
     .insert({
@@ -36,6 +44,12 @@ export async function upsertTurnMetrics(turnId: number, metrics: {
   needs?: string[];
   boundaries?: string[];
 }): Promise<void> {
+  // In guest mode, just log the metrics
+  if (isGuestModeEnabled()) {
+    console.log('Guest mode: Turn metrics:', { turnId, metrics });
+    return;
+  }
+
   const { error } = await (supabase as any)
     .from('turn_metrics')
     .upsert({
@@ -57,6 +71,12 @@ export async function upsertTurnSafety(turnId: number, safety: {
   matched?: string[];
   escalated?: boolean;
 }): Promise<void> {
+  // In guest mode, just log the safety data
+  if (isGuestModeEnabled()) {
+    console.log('Guest mode: Turn safety:', { turnId, safety });
+    return;
+  }
+
   const { error } = await (supabase as any)
     .from('turn_safety')
     .upsert({

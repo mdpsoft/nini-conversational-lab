@@ -1,6 +1,7 @@
 import { UserAIProfile } from '@/store/profiles';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { isGuestModeEnabled } from '@/hooks/useGuestMode';
 
 export interface ProfilesRepo {
   list(): Promise<UserAIProfile[]>;
@@ -201,31 +202,10 @@ export class LocalProfilesRepo implements ProfilesRepo {
 
 // Repository resolver
 export function resolveProfilesRepo(): { repo: ProfilesRepo; source: DataSource } {
-  // Check if we have Supabase configured and user is authenticated
-  const canUseSupabase = (() => {
-    try {
-      // Check if we can access auth state
-      return supabase.auth.getUser().then(({ data }) => !!data.user);
-    } catch {
-      return Promise.resolve(false);
-    }
-  })();
-
-  // For now, return sync decision - we'll improve this with async patterns later
-  // Check if user appears to be authenticated (basic check)
-  const session = supabase.auth.getSession();
-  const isAuthenticated = session.then(({ data }) => !!data.session?.user);
-
-  return isAuthenticated.then(authenticated => {
-    if (authenticated) {
-      return { repo: new SupabaseProfilesRepo(), source: 'Supabase' as DataSource };
-    } else {
-      return { repo: new LocalProfilesRepo(), source: 'Local' as DataSource };
-    }
-  }).catch(() => {
-    // Fallback to local on any error
+  // If guest mode is enabled, always use local storage
+  if (isGuestModeEnabled()) {
     return { repo: new LocalProfilesRepo(), source: 'Local' as DataSource };
-  }) as any;
+  }
 
   // Temporary sync version for immediate use
   try {
@@ -241,6 +221,11 @@ export function resolveProfilesRepo(): { repo: ProfilesRepo; source: DataSource 
 
 // Async version of resolver
 export async function resolveProfilesRepoAsync(): Promise<{ repo: ProfilesRepo; source: DataSource }> {
+  // If guest mode is enabled, always use local storage
+  if (isGuestModeEnabled()) {
+    return { repo: new LocalProfilesRepo(), source: 'Local' };
+  }
+
   try {
     const { data } = await supabase.auth.getSession();
     if (data.session?.user) {

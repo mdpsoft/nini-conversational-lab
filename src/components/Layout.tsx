@@ -1,6 +1,7 @@
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, Database, HardDrive } from "lucide-react";
 import { Outlet } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Sidebar,
   SidebarContent,
@@ -10,6 +11,9 @@ import {
 import { useSettingsStore } from "../store/settings";
 import { UserMenu } from "@/components/UserMenu";
 import { CollapsibleNav } from "./CollapsibleNav";
+import { useProfilesRepo } from "@/hooks/useProfilesRepo";
+import { useGuestMode } from "@/hooks/useGuestMode";
+import { useDevAutoLogin } from "@/hooks/useDevAutoLogin";
 
 function AppSidebar() {
   return (
@@ -26,6 +30,9 @@ function AppSidebar() {
 
 function Layout() {
   const { darkMode, setDarkMode } = useSettingsStore();
+  const { dataSource } = useProfilesRepo();
+  const { guestMode } = useGuestMode();
+  const { devAutoLoginUsed } = useDevAutoLogin();
 
   return (
     <SidebarProvider>
@@ -40,6 +47,28 @@ function Layout() {
             </div>
             
             <div className="flex items-center gap-4">
+              {/* Data source indicator */}
+              <Badge variant="outline" className="text-xs">
+                {dataSource === 'Supabase' ? (
+                  <>
+                    <Database className="h-3 w-3 mr-1" />
+                    {guestMode ? 'Local (Guest)' : 'Supabase'}
+                  </>
+                ) : (
+                  <>
+                    <HardDrive className="h-3 w-3 mr-1" />
+                    {guestMode ? 'Local (Guest)' : 'Local'}
+                  </>
+                )}
+              </Badge>
+              
+              {/* Dev auto-login indicator */}
+              {devAutoLoginUsed && (
+                <Badge variant="secondary" className="text-xs">
+                  Dev Auto-Login
+                </Badge>
+              )}
+              
               <UserMenu />
               <Button
                 variant="ghost"
