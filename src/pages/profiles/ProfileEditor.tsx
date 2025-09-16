@@ -260,71 +260,73 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave, initialProfi
               </div>
 
               {/* Body */}
-              <div className="flex-1 grid grid-cols-12 gap-6 px-6 py-4 md:grid-cols-12 sm:grid-cols-1 min-h-0">
-                {/* Left (form) */}
-                <div className="col-span-8 overflow-hidden sm:col-span-1">
-                  <div className="h-full overflow-y-auto pr-2">
-                    <TabsContent value="auto" className="mt-0 space-y-6">
-                      <AutoTab
-                        data={formData}
-                        errors={errors}
-                        onChange={updateFormData}
-                      />
-                    </TabsContent>
+              <div className="flex-1 px-6 py-4 overflow-hidden">
+                <div className="h-full flex flex-col gap-4 md:flex-row md:gap-6 items-stretch">
+                  {/* Left (form) */}
+                  <div className="md:basis-2/3 min-w-0 overflow-hidden">
+                    <div className="h-full overflow-y-auto pr-2">
+                      <TabsContent value="auto" className="mt-0 space-y-6">
+                        <AutoTab
+                          data={formData}
+                          errors={errors}
+                          onChange={updateFormData}
+                        />
+                      </TabsContent>
 
-                    <TabsContent value="overview" className="mt-0 space-y-6">
-                      <OverviewTab
-                        data={formData}
-                        errors={errors}
-                        isEditing={isEditing}
-                        onChange={updateFormData}
-                      />
-                    </TabsContent>
+                      <TabsContent value="overview" className="mt-0 space-y-6">
+                        <OverviewTab
+                          data={formData}
+                          errors={errors}
+                          isEditing={isEditing}
+                          onChange={updateFormData}
+                        />
+                      </TabsContent>
 
-                    <TabsContent value="personality" className="mt-0 space-y-6">
-                      <PersonalityTab
-                        data={formData}
-                        errors={errors}
-                        onChange={updateFormData}
-                      />
-                    </TabsContent>
+                      <TabsContent value="personality" className="mt-0 space-y-6">
+                        <PersonalityTab
+                          data={formData}
+                          errors={errors}
+                          onChange={updateFormData}
+                        />
+                      </TabsContent>
 
-                    <TabsContent value="focus" className="mt-0 space-y-6">
-                      <FocusTab
-                        data={formData}
-                        errors={errors}
-                        onChange={updateFormData}
-                      />
-                    </TabsContent>
+                      <TabsContent value="focus" className="mt-0 space-y-6">
+                        <FocusTab
+                          data={formData}
+                          errors={errors}
+                          onChange={updateFormData}
+                        />
+                      </TabsContent>
 
-                    <TabsContent value="behavior" className="mt-0 space-y-6">
-                      <BehaviorTab
-                        data={formData}
-                        errors={errors}
-                        onChange={updateFormData}
-                      />
-                    </TabsContent>
+                      <TabsContent value="behavior" className="mt-0 space-y-6">
+                        <BehaviorTab
+                          data={formData}
+                          errors={errors}
+                          onChange={updateFormData}
+                        />
+                      </TabsContent>
 
-                    <TabsContent value="safety" className="mt-0 space-y-6">
-                      <SafetyTab
-                        data={formData}
-                        errors={errors}
-                        onChange={updateFormData}
-                      />
-                    </TabsContent>
+                      <TabsContent value="safety" className="mt-0 space-y-6">
+                        <SafetyTab
+                          data={formData}
+                          errors={errors}
+                          onChange={updateFormData}
+                        />
+                      </TabsContent>
 
-                    <TabsContent value="json" className="mt-0 space-y-6">
-                      <JsonTab data={formData} />
-                    </TabsContent>
+                      <TabsContent value="json" className="mt-0 space-y-6">
+                        <JsonTab data={formData} />
+                      </TabsContent>
+                    </div>
                   </div>
+
+                  {/* Right (preview) */}
+                  <aside className="md:basis-1/3 min-w-0">
+                    <div className="md:sticky md:top-3 max-h-[calc(88vh-160px)] overflow-y-auto">
+                      <ProfilePreview profile={formData} />
+                    </div>
+                  </aside>
                 </div>
-
-                {/* Right (preview) */}
-                <aside className="col-span-4 sm:col-span-1">
-                  <div className="sticky top-3 max-h-[calc(88vh-160px)] overflow-y-auto">
-                    <ProfilePreview profile={formData} />
-                  </div>
-                </aside>
               </div>
               
             </Tabs>
