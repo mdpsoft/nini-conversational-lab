@@ -31,11 +31,10 @@ export function createEmptyProfile(lang: 'es' | 'en' = 'es'): UserAIProfile {
       escalation: 'remind_safety_protocol',
     },
     version: 1,
-    // v2.1 fields with safe defaults
-    ageYears: undefined,
-    ageGroup: null,
-    personalityPreset: null,
-    strictness: 'balanced',
-    presetSource: 'custom',
+  // v2.1 fields with safe defaults
+  ageYears: undefined,
+  ageGroup: null,
+  personalityPreset: null,
+  presetSource: 'custom',
   };
 }

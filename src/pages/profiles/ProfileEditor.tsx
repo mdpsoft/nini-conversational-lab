@@ -215,7 +215,6 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave, initialProfi
       personalityPreset: p.personalityPreset === null || p.personalityPreset === undefined ? null : p.personalityPreset,
       ageYears: p.ageYears != null ? clampAge(p.ageYears) : null,
       ageGroup: p.ageGroup ?? (p.ageYears != null ? deriveAgeGroup(p.ageYears) : null),
-      strictness: p.strictness ?? 'balanced',
       presetSource: p.presetSource ?? (p.personalityPreset ? 'preset' : 'custom'),
     } as UserAIProfile;
   };

@@ -8,11 +8,10 @@ import { Wand2, Unlock } from "lucide-react";
 import { useState } from "react";
 import { UserAIProfile } from "@/store/profiles";
 import { 
-  getPersonalityPresets, 
+  getUserAIPresets, 
   presetToProfileFields, 
-  PersonalityPreset, 
-  Strictness
-} from "@/utils/profilePresets";
+  UserAIPresetId
+} from "@/utils/useraiPresets";
 import { clampAge, deriveAgeGroup, midpointFor, labelFor, AgeGroup } from "@/utils/age";
 import { useToast } from "@/hooks/use-toast";
 import { coerceSelect, isUnset } from "@/utils/selectUtils";
@@ -26,7 +25,7 @@ interface AutoTabProps {
 export function AutoTab({ data, errors, onChange }: AutoTabProps) {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const { toast } = useToast();
-  const presets = getPersonalityPresets();
+  const presets = getUserAIPresets();
 
   const onAgeChange = (v: string) => {
     const n = clampAge(parseInt(v, 10));
@@ -47,8 +46,8 @@ export function AutoTab({ data, errors, onChange }: AutoTabProps) {
     }
   };
 
-  const handlePresetChange = (presetId: PersonalityPreset) => {
-    const presetFields = presetToProfileFields(presetId, data.lang, data.strictness || 'balanced');
+  const handlePresetChange = (presetId: UserAIPresetId) => {
+    const presetFields = presetToProfileFields(presetId, data.lang);
     
     onChange({
       personalityPreset: presetId,
@@ -59,16 +58,12 @@ export function AutoTab({ data, errors, onChange }: AutoTabProps) {
 
   const handleGenerate = () => {
     // Use safe defaults if personalityPreset is unset
-    const presetId = isUnset(data.personalityPreset) 
-      ? 'secure_supportive' as PersonalityPreset
-      : data.personalityPreset as PersonalityPreset;
+    const presetId = isUnset(data.personalityPreset) || !data.personalityPreset
+      ? 'anxious_dependent' as UserAIPresetId
+      : data.personalityPreset as UserAIPresetId;
     
     try {
-      const presetFields = presetToProfileFields(
-        presetId, 
-        data.lang, 
-        data.strictness || 'balanced'
-      );
+      const presetFields = presetToProfileFields(presetId, data.lang);
       
       onChange({
         personalityPreset: presetId,
@@ -148,9 +143,9 @@ export function AutoTab({ data, errors, onChange }: AutoTabProps) {
         </div>
       </div>
 
-      {/* Personality Preset */}
+        {/* Personality Preset */}
       <div>
-        <Label>Personality Preset</Label>
+        <Label>Perfil de Personalidad</Label>
         <div className="grid grid-cols-2 gap-3 mt-2">
           {presets.map((preset) => (
             <Card 
@@ -164,13 +159,13 @@ export function AutoTab({ data, errors, onChange }: AutoTabProps) {
             >
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <span className="text-lg">{preset.emoji}</span>
+                  <span className="text-lg">{preset.icon}</span>
                   {preset.name}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
                 <CardDescription className="text-xs">
-                  {preset.description}
+                  {preset.short}
                 </CardDescription>
               </CardContent>
             </Card>
@@ -180,31 +175,17 @@ export function AutoTab({ data, errors, onChange }: AutoTabProps) {
         {selectedPreset && (
           <div className="mt-3 p-3 bg-muted/30 rounded-lg">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-lg">{selectedPreset.emoji}</span>
+              <span className="text-lg">{selectedPreset.icon}</span>
               <Badge variant="secondary">{selectedPreset.name}</Badge>
             </div>
-            <p className="text-sm text-muted-foreground">{selectedPreset.description}</p>
+            <p className="text-sm text-muted-foreground">{selectedPreset.short}</p>
+            <div className="mt-2 text-xs text-muted-foreground">
+              Preguntas: {selectedPreset.defaultQuestionRate.min}-{selectedPreset.defaultQuestionRate.max} por respuesta
+            </div>
           </div>
         )}
       </div>
 
-      {/* Strictness */}
-      <div>
-        <Label htmlFor="strictness">Nivel de Firmeza</Label>
-        <Select 
-          value={data.strictness || 'balanced'} 
-          onValueChange={(value: Strictness) => onChange({ strictness: value })}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="soft">Suave - Más empático, menos directivo</SelectItem>
-            <SelectItem value="balanced">Equilibrado - Balance entre apoyo y guía</SelectItem>
-            <SelectItem value="firm">Firme - Más directivo y estructurado</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
 
       {/* Quick Settings */}
       <div className="grid grid-cols-2 gap-4">

@@ -30,8 +30,7 @@ export interface UserAIProfile {
   // v2.1 fields
   ageYears?: number; // 13..99
   ageGroup?: 'teen_13_17' | 'young_18_29' | 'adult_30_49' | 'mature_50_64' | 'senior_65_plus' | null;
-  personalityPreset?: 'secure_supportive' | 'empathetic_reflective' | 'direct_solution' | 'playful_optimistic' | 'analytical_calm' | 'stoic_brief' | 'anxious_reassurance' | 'avoidant_low_disclosure' | null;
-  strictness?: 'soft' | 'balanced' | 'firm';
+  personalityPreset?: 'anxious_dependent' | 'insecure_selfcritical' | 'sensitive_vulnerable' | 'jealous_controlling' | 'avoidant_distanced' | 'hurt_distrustful' | 'burned_out_overwhelmed' | 'resilient_in_progress' | null;
   presetSource?: 'preset' | 'custom';
 }
 
@@ -84,9 +83,8 @@ const mockProfiles: UserAIProfile[] = [
       escalation: "remind_safety_protocol",
     },
     // v2.1 defaults with migration
-    personalityPreset: 'secure_supportive',
+    personalityPreset: 'anxious_dependent',
     presetSource: 'custom',
-    strictness: 'balanced',
     version: 1
   },
   {
@@ -120,9 +118,8 @@ const mockProfiles: UserAIProfile[] = [
       escalation: "escalate_specialist",
     },
     // v2.1 defaults with migration
-    personalityPreset: 'secure_supportive',
+    personalityPreset: 'avoidant_distanced',
     presetSource: 'custom',
-    strictness: 'balanced',
     version: 1
   },
   {
@@ -156,9 +153,8 @@ const mockProfiles: UserAIProfile[] = [
       escalation: "Recordar que las emociones intensas son válidas",
     },
     // v2.1 defaults with migration
-    personalityPreset: 'secure_supportive',
+    personalityPreset: 'hurt_distrustful',
     presetSource: 'custom',
-    strictness: 'balanced',
     version: 1
   }
 ];

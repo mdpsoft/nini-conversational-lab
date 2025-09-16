@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { X, Plus, Unlock, Lock } from "lucide-react";
 import { useState } from "react";
 import { UserAIProfile } from "@/store/profiles";
-import { getPersonalityPresets, PersonalityPreset, presetToProfileFields } from "@/utils/profilePresets";
+import { getUserAIPresets, UserAIPresetId, presetToProfileFields } from "@/utils/useraiPresets";
 import { coerceSelect } from "@/utils/selectUtils";
 
 interface PersonalityTabProps {
@@ -19,7 +19,7 @@ interface PersonalityTabProps {
 export function PersonalityTab({ data, errors, onChange }: PersonalityTabProps) {
   const [newTrait, setNewTrait] = useState("");
   const [isUnlocked, setIsUnlocked] = useState(data.presetSource === 'custom');
-  const presets = getPersonalityPresets();
+  const presets = getUserAIPresets();
 
   const addTrait = () => {
     if (newTrait.trim() && data.traits.length < 10 && !data.traits.includes(newTrait.trim())) {
@@ -38,8 +38,8 @@ export function PersonalityTab({ data, errors, onChange }: PersonalityTabProps) 
     });
   };
 
-  const handlePresetChange = (presetId: PersonalityPreset) => {
-    const presetFields = presetToProfileFields(presetId, data.lang, data.strictness || 'balanced');
+  const handlePresetChange = (presetId: UserAIPresetId) => {
+    const presetFields = presetToProfileFields(presetId, data.lang);
     
     onChange({
       personalityPreset: presetId,
@@ -95,13 +95,13 @@ export function PersonalityTab({ data, errors, onChange }: PersonalityTabProps) 
             >
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <span className="text-lg">{preset.emoji}</span>
+                  <span className="text-lg">{preset.icon}</span>
                   {preset.name}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
                 <CardDescription className="text-xs">
-                  {preset.description}
+                  {preset.short}
                 </CardDescription>
               </CardContent>
             </Card>
@@ -111,13 +111,16 @@ export function PersonalityTab({ data, errors, onChange }: PersonalityTabProps) 
         {selectedPreset && (
           <div className="mt-3 p-3 bg-muted/30 rounded-lg">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-lg">{selectedPreset.emoji}</span>
+              <span className="text-lg">{selectedPreset.icon}</span>
               <Badge variant="secondary">{selectedPreset.name}</Badge>
               {data.presetSource === 'custom' && (
                 <Badge variant="outline">Personalizado</Badge>
               )}
             </div>
-            <p className="text-sm text-muted-foreground">{selectedPreset.description}</p>
+            <p className="text-sm text-muted-foreground">{selectedPreset.short}</p>
+            <div className="mt-2 text-xs text-muted-foreground">
+              Preguntas: {selectedPreset.defaultQuestionRate.min}-{selectedPreset.defaultQuestionRate.max} por respuesta
+            </div>
           </div>
         )}
       </div>
