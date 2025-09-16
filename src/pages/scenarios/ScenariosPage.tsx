@@ -94,7 +94,7 @@ export default function ScenariosPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!validateFileType(file, ['json'])) {
+    if (!validateFileType(file)) {
       toast({
         title: "Invalid file type",
         description: "Please upload a JSON file",
