@@ -21,6 +21,7 @@ import EnvironmentPage from "./pages/settings/EnvironmentPage";
 import AuthChecksPage from "./pages/settings/AuthChecksPage";
 import ScenarioAuditPage from "./pages/dev/ScenarioAuditPage";
 import ErrorLogPage from "./pages/dev/ErrorLogPage";
+import BlankTestPage from "./pages/dev/BlankTestPage";
 import NavDebugPage from "./pages/settings/NavDebugPage";
 import LLMErrorInspectorPage from "./pages/debug/LLMErrorInspectorPage";
 import SupabaseSQLPage from "./pages/SupabaseSQLPage";
@@ -67,6 +68,9 @@ const App = () => {
               <Route path="dev/scenario-audit" element={<ScenarioAuditPage />} />
               {isDevMode && (
                 <Route path="dev/error-log" element={<ErrorLogPage />} />
+              )}
+              {isDevMode && (
+                <Route path="dev/blank-test" element={<BlankTestPage />} />
               )}
               <Route path="settings/nav-debug" element={<NavDebugPage />} />
               <Route path="scenarios" element={<ScenariosPage />} />

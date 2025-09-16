@@ -49,6 +49,13 @@ export default function ErrorLogPage() {
             {errors.length} error{errors.length !== 1 ? 'es' : ''}
           </Badge>
           <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => window.location.href = '/dev/blank-test'}
+          >
+            🔍 Blank Test
+          </Button>
+          <Button 
             variant="destructive" 
             size="sm"
             onClick={clearErrors}
