@@ -1,5 +1,5 @@
 import { UserAIProfile } from '@/store/profiles';
-import type { AgeGroup } from '@/utils/age';
+import { AgeGroup, deriveAgeGroup, dbAgeGroupToUi, uiAgeGroupToDb } from '@/utils/age';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { isGuestModeEnabled } from '@/hooks/useGuestMode';
@@ -18,29 +18,6 @@ export class SchemaError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'SchemaError';
-  }
-}
-
-// Helpers to map DB age_group (v2.1) to UI AgeGroup type
-function dbAgeToUi(group?: string | null) {
-  switch (group) {
-    case 'teen': return 'teen_13_17';
-    case 'young_adult': return 'young_18_29';
-    case 'adult': return 'adult_30_49';
-    case 'middle_aged': return 'mature_50_64';
-    case 'senior': return 'senior_65_plus';
-    default: return null;
-  }
-}
-
-function uiAgeToDb(group?: any | null): string | null {
-  switch (group) {
-    case 'teen_13_17': return 'teen';
-    case 'young_18_29': return 'young_adult';
-    case 'adult_30_49': return 'adult';
-    case 'mature_50_64': return 'middle_aged';
-    case 'senior_65_plus': return 'senior';
-    default: return null;
   }
 }
 
@@ -165,7 +142,7 @@ export class SupabaseProfilesRepo implements ProfilesRepo {
       version: row.version || 1,
       // v2.1 fields
       ageYears: row.age_years ?? null,
-      ageGroup: dbAgeToUi(row.age_group),
+      ageGroup: dbAgeGroupToUi(row.age_group),
       personalityPreset: row.personality_preset ?? null,
       presetSource: row.preset_source ?? null,
       strictness: row.strictness || 'balanced',
@@ -193,7 +170,7 @@ export class SupabaseProfilesRepo implements ProfilesRepo {
       version: profile.version,
       // v2.1 fields
       age_years: profile.ageYears ?? null,
-      age_group: uiAgeToDb(profile.ageGroup),
+      age_group: uiAgeGroupToDb(profile.ageGroup),
       personality_preset: profile.personalityPreset ?? null,
       preset_source: profile.presetSource ?? null,
       strictness: profile.strictness || 'balanced',

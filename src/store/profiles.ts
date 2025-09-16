@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AgeGroup } from '@/utils/age';
+import { AgeGroup, deriveAgeGroup } from '@/utils/age';
 
 export interface UserAIProfile {
   id: string;

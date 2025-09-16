@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { UserAIProfile } from "@/store/profiles";
-import { labelFor } from "@/utils/age";
+import { AgeGroup, labelFor } from "@/utils/age";
 import { getUserAIPresets } from "@/utils/useraiPresets";
 
 interface ProfilePreviewProps {
@@ -28,12 +28,12 @@ export function ProfilePreview({ profile }: ProfilePreviewProps) {
           </Badge>
           {profile.ageYears && (
             <Badge variant="outline">
-              {profile.ageYears} años / {labelFor(profile.ageGroup)}
+              {profile.ageYears} años / {labelFor(profile.ageGroup as AgeGroup | null)}
             </Badge>
           )}
           {profile.ageGroup && !profile.ageYears && (
             <Badge variant="outline">
-              {labelFor(profile.ageGroup)}
+              {labelFor(profile.ageGroup as AgeGroup | null)}
             </Badge>
           )}
           {selectedPreset && (

@@ -12,7 +12,7 @@ import {
   presetToProfileFields, 
   UserAIPresetId
 } from "@/utils/useraiPresets";
-import { clampAge, deriveAgeGroup, midpointFor, labelFor, AgeGroup } from "@/utils/age";
+import { AgeGroup, clampAge, deriveAgeGroup, midpointFor, labelFor } from "@/utils/age";
 import { useToast } from "@/hooks/use-toast";
 import { coerceSelect, isUnset } from "@/utils/selectUtils";
 
