@@ -1,5 +1,5 @@
 import { expect, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@/test/render'
 
 /**
  * Assert that a toast message is displayed

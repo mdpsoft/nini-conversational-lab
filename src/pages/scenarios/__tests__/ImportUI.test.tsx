@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { renderWithProviders } from '@/test/render'
-import { screen, waitFor } from '@testing-library/react'
+import { renderWithProviders, screen, waitFor } from '@/test/render'
 import userEvent from '@testing-library/user-event'
 import { expectToast, expectNoToast } from '@/test/assertions'
 

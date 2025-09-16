@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { renderWithProviders } from '@/test/render'
-import { screen, waitFor } from '@testing-library/react'
+import { renderWithProviders, screen, waitFor } from '@/test/render'
 import { emitRealtime } from '@/test/mocks/supabaseClient.mock'
 import { makeEvent } from '@/test/factories'
 
