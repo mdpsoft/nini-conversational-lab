@@ -1,28 +1,41 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderWithProviders, screen, waitFor } from '@/test/render';
-import { expectEventLogged, expectBadge } from '@/test/assertions';
-import { makeProfile, makeScenario } from '@/test/factories';
+import NiniAdapter from '@/core/nini/NiniAdapter';
 import { Runner } from '@/core/runner/Runner';
 import * as runsRepo from '@/data/runsRepo';
 import * as turnsRepo from '@/data/turnsRepo';
 import * as eventsRepo from '@/data/eventsRepo';
-import * as niniAdapter from '@/core/nini/NiniAdapter';
+import { installSupabaseMock } from '@/test/mocks/supabaseClient.mock';
 
-// Mock all the repos and dependencies
+vi.mock('@/integrations/supabase/client', () => {
+  const { createMockSupabaseClient } = require('@/test/mocks/supabaseClient.mock');
+  return { supabase: createMockSupabaseClient() };
+});
+
+// Mock repos
 vi.mock('@/data/runsRepo');
 vi.mock('@/data/turnsRepo');
 vi.mock('@/data/eventsRepo');
-vi.mock('@/core/nini/NiniAdapter');
 
 describe('Runner Sentinel Tests', () => {
-  const mockProfile = makeProfile({ name: 'Test Profile' });
-  const mockScenario = makeScenario({ 
+  const mockProfile: any = { id: 'profile-1', name: 'Test Profile' };
+  const mockScenario: import('@/types/core').Scenario = {
+    id: 'scenario-1',
     name: 'Test Scenario',
-    relationshipType: 'just_friend'
-  });
+    language: 'en',
+    topic: 'friend',
+    attachment_style: 'secure',
+    emotional_intensity: 0.5,
+    cognitive_noise: 0.1,
+    crisis_signals: 'none',
+    goals: ['Test goal'],
+    constraints: [],
+    seed_turns: ['Hello there'],
+    success_criteria: { must: [] },
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    installSupabaseMock({ user: { id: 'user-123', email: 'test@example.com' } });
     
     // Setup default mocks
     vi.mocked(runsRepo.createRun).mockResolvedValue({ runId: 'test-run-123' });
@@ -35,13 +48,13 @@ describe('Runner Sentinel Tests', () => {
 
   it('happy path: creates run, processes turns, finishes run with proper events', async () => {
     // Mock successful LLM responses
-    vi.mocked(niniAdapter.NiniAdapter.respondAsUserAI).mockResolvedValue({
+    vi.spyOn(NiniAdapter as any, 'respondAsUserAI').mockResolvedValue({
       success: true,
       text: 'Hello, how are you?',
       meta: { beat: 'greeting', memory: { mood: 'friendly' } }
     });
 
-    vi.mocked(niniAdapter.NiniAdapter.respondWithNini).mockResolvedValue({
+    vi.spyOn(NiniAdapter as any, 'respondWithNini').mockResolvedValue({
       success: true,
       text: 'I am doing well, thank you for asking!',
       meta: { usage: { tokens: 50 }, emoji_count: 0 }
