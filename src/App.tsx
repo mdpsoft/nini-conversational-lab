@@ -60,9 +60,8 @@ const App = () => {
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Layout />}>
+        <Routes>
+          <Route path="/" element={<Layout />}>
               <Route path="settings" element={<SettingsPage />} />
               <Route path="settings/env" element={<EnvironmentPage />} />
               <Route path="settings/auth-checks" element={<AuthChecksPage />} />
@@ -99,10 +98,9 @@ const App = () => {
                     <Navigate to="/scenarios" replace />
                 } 
               />
-              <Route path="*" element={<div className="p-6 text-sm">404 — route not found</div>} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
+            <Route path="*" element={<div className="p-6 text-sm">404 — route not found</div>} />
+          </Route>
+        </Routes>
       </TooltipProvider>
     </QueryClientProvider>
   );
