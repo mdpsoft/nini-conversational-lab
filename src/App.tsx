@@ -29,6 +29,7 @@ import SupabaseValidatorPage from "./pages/SupabaseValidatorPage";
 import SupabaseSQLPhase2Page from "./pages/SupabaseSQLPhase2Page";
 import ExpressCheckPage from "./pages/dev/ExpressCheckPage";
 import SupabaseCheckPage from "./pages/dev/SupabaseCheckPage";
+import RealtimeCheckPage from "./pages/dev/RealtimeCheckPage";
 import { useSettingsStore } from "./store/settings";
 import { useScenariosStore } from "./store/scenarios";
 import { useDevAutoLogin } from "./hooks/useDevAutoLogin";
@@ -69,6 +70,9 @@ const App = () => {
               <Route path="dev/scenario-audit" element={<ScenarioAuditPage />} />
               {isDevMode && (
                 <Route path="dev/supabase-check" element={<SupabaseCheckPage />} />
+              )}
+              {isDevMode && (
+                <Route path="dev/realtime-check" element={<RealtimeCheckPage />} />
               )}
               {isDevMode && (
                 <Route path="dev/express-check" element={<ExpressCheckPage />} />

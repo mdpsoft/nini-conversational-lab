@@ -337,6 +337,10 @@ function BlankTestPageContent() {
           <a href="/dev/supabase-check">Supabase Health</a>
         </Button>
         
+        <Button asChild variant="outline" size="sm">
+          <a href="/dev/realtime-check">Realtime Check</a>
+        </Button>
+        
         <Button
           variant="outline"
           size="sm"

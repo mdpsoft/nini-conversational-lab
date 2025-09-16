@@ -274,9 +274,9 @@ function SupabaseCheckContent() {
                   </a>
                 </Button>
                 <Button asChild variant="ghost" size="sm" className="justify-start">
-                  <a href="/dev/express-check" target="_blank">
+                  <a href="/dev/realtime-check" target="_blank">
                     <ExternalLink className="h-3 w-3 mr-2" />
-                    Express Check
+                    Realtime Check
                   </a>
                 </Button>
               </div>

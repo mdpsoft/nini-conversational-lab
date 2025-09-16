@@ -357,6 +357,9 @@ function ExpressCheckContent() {
               <a href="/dev/supabase-check">Supabase Health</a>
             </Button>
             <Button asChild variant="ghost" size="sm">
+              <a href="/dev/realtime-check">Realtime Check</a>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
               <a href="/dev/express-check">Express Check</a>
             </Button>
             <Button asChild variant="ghost" size="sm">
