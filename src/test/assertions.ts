@@ -1,5 +1,6 @@
 import { expect, vi } from 'vitest'
 import { screen, waitFor } from '@/test/render'
+import userEvent from '@testing-library/user-event'
 
 /**
  * Assert that a toast message is displayed
@@ -100,6 +101,27 @@ export function expectBadge(text: string) {
   const badge = screen.getByText(text);
   expect(badge).toBeInTheDocument();
   expect(badge.classList.toString()).toMatch(/badge/i);
+}
+
+// Scenario editor helpers
+export async function selectRelationshipType(label: string) {
+  const user = userEvent.setup();
+  
+  // Find the relationship type select trigger
+  const relationshipSelect = screen.getByText('Relationship Type').closest('div')?.querySelector('[role="combobox"]');
+  if (!relationshipSelect) {
+    throw new Error('Relationship Type select not found');
+  }
+  
+  // Click to open dropdown
+  await user.click(relationshipSelect);
+  
+  // Wait for dropdown to open and click the desired option
+  await waitFor(() => {
+    expect(screen.getByText(label)).toBeInTheDocument();
+  });
+  
+  await user.click(screen.getByText(label));
 }
 
 /**
