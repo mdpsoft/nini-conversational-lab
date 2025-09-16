@@ -20,6 +20,7 @@ import SavedViewsPage from "./pages/settings/SavedViewsPage";
 import EnvironmentPage from "./pages/settings/EnvironmentPage";
 import AuthChecksPage from "./pages/settings/AuthChecksPage";
 import ScenarioAuditPage from "./pages/dev/ScenarioAuditPage";
+import ErrorLogPage from "./pages/dev/ErrorLogPage";
 import NavDebugPage from "./pages/settings/NavDebugPage";
 import LLMErrorInspectorPage from "./pages/debug/LLMErrorInspectorPage";
 import SupabaseSQLPage from "./pages/SupabaseSQLPage";
@@ -37,6 +38,10 @@ const App = () => {
   
   // Initialize dev auto-login (will attempt login if configured)
   useDevAutoLogin();
+
+  // Check if we should show dev routes
+  const isDevMode = import.meta.env.DEV || 
+                   typeof window !== 'undefined' && localStorage.getItem('debug-errors') === 'true';
 
   useEffect(() => {
     // Load encrypted API key if available
@@ -60,6 +65,9 @@ const App = () => {
               <Route path="settings/env" element={<EnvironmentPage />} />
               <Route path="settings/auth-checks" element={<AuthChecksPage />} />
               <Route path="dev/scenario-audit" element={<ScenarioAuditPage />} />
+              {isDevMode && (
+                <Route path="dev/error-log" element={<ErrorLogPage />} />
+              )}
               <Route path="settings/nav-debug" element={<NavDebugPage />} />
               <Route path="scenarios" element={<ScenariosPage />} />
               <Route path="run" element={<RunPage />} />

@@ -238,7 +238,7 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave, initialProfi
           </DialogTitle>
         </DialogHeader>
 
-        <ErrorBoundary>
+        <ErrorBoundary componentName="ProfileEditor">
 
         <Suspense fallback={<div className="p-6 text-muted-foreground">Cargando editor…</div>}>
           <div className="flex-1 flex gap-6 overflow-hidden">

@@ -1,8 +1,10 @@
 import React from 'react';
+import { useErrorLogStore } from '@/store/errorLog';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
   fallback?: React.ReactNode;
+  componentName?: string; // Optional component name for better logging
 }
 
 interface ErrorBoundaryState {
@@ -29,6 +31,19 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     
     // Store errorInfo in state for potential display
     this.setState({ errorInfo });
+
+    // Add error to global error log store
+    try {
+      const { addError } = useErrorLogStore.getState();
+      addError({
+        componentName: this.props.componentName || 'Unknown Component',
+        message: error.message,
+        stack: error.stack,
+        errorInfo: errorInfo.componentStack,
+      });
+    } catch (storeError) {
+      console.error('[ErrorBoundary] Failed to log error to store:', storeError);
+    }
   }
 
   render() {
