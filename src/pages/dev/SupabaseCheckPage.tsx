@@ -8,7 +8,7 @@ import { AlertTriangle, CheckCircle, XCircle, RotateCcw, Database, Wifi, User, Z
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
-import { testRealtimeConnection } from '@/lib/realtime';
+import { runRealtimeSmokeTest } from '@/utils/realtimeSmoke';
 import { toast } from 'sonner';
 
 interface DiagnosticResult {
@@ -176,22 +176,40 @@ alter table public.events          replica identity full;`;
       }
 
       // 5. Realtime Test
-      if (user) {
-        addResult('Realtime Test', 'RUNNING', 'Testing realtime connectivity...');
-        
+      addResult('Realtime Test', 'RUNNING', 'Testing realtime connectivity...');
+      
+      // Check for circuit breaker or SafeBoot
+      const isRealtimeDisabled = localStorage.getItem('realtimeDisabled') === 'true';
+      const isSafeBoot = localStorage.getItem('safe-boot') === 'true';
+      
+      if (isRealtimeDisabled || isSafeBoot) {
+        addResult('Realtime Test', 'WARNING', 
+          `Realtime disabled by ${isRealtimeDisabled ? 'Circuit Breaker' : 'SafeBoot'}`, 
+          'Use Enable & Retry button to restore realtime functionality'
+        );
+      } else {
         try {
-          const realtimeWorking = await testRealtimeConnection(user.id);
+          const smokeResult = await runRealtimeSmokeTest(supabase);
           
-          if (realtimeWorking) {
-            addResult('Realtime Test', 'PASS', 'Realtime connection working correctly');
+          if (smokeResult.ok) {
+            addResult('Realtime Test', 'PASS', 
+              `✅ Handshake / ✅ Subscribe / ✅ Round-trip - All tests passed`
+            );
           } else {
-            addResult('Realtime Test', 'FAIL', 'Realtime connection failed', 'Check realtime configuration and RLS policies');
+            const statusIcons = [
+              smokeResult.handshake === 'PASS' ? '✅' : '❌',
+              smokeResult.subscribe === 'PASS' ? '✅' : '❌', 
+              smokeResult.roundtrip === 'PASS' ? '✅' : '❌'
+            ];
+            
+            addResult('Realtime Test', 'FAIL', 
+              `${statusIcons[0]} Handshake / ${statusIcons[1]} Subscribe / ${statusIcons[2]} Round-trip - ${smokeResult.error}`,
+              'Open Realtime Debugger for detailed analysis'
+            );
           }
         } catch (error) {
-          addResult('Realtime Test', 'FAIL', `Realtime test error: ${error}`, 'Ensure events table exists with proper RLS');
+          addResult('Realtime Test', 'FAIL', `Realtime test error: ${error}`, 'Open Realtime Debugger for detailed analysis');
         }
-      } else {
-        addResult('Realtime Test', 'WARNING', 'Skipped (requires authentication)', 'Sign in to test realtime functionality');
       }
 
     } catch (globalError) {
@@ -356,6 +374,36 @@ alter table public.events          replica identity full;`;
               >
                 <Wifi className="h-4 w-4 mr-2" />
                 Auto-Fix Realtime
+              </Button>
+            )}
+
+            {/* Circuit Breaker / SafeBoot Enable & Retry */}
+            {(localStorage.getItem('realtimeDisabled') === 'true' || localStorage.getItem('safe-boot') === 'true') && (
+              <Button 
+                onClick={() => {
+                  localStorage.removeItem('realtimeDisabled');
+                  localStorage.removeItem('safe-boot');
+                  window.location.reload();
+                }}
+                variant="outline"
+                className="w-full"
+              >
+                <Zap className="h-4 w-4 mr-2" />
+                Enable & Retry
+              </Button>
+            )}
+
+            {/* Realtime Debugger Link */}
+            {results.some(r => r.name === 'Realtime Test' && r.status === 'FAIL') && (
+              <Button 
+                asChild
+                variant="outline"
+                className="w-full"
+              >
+                <a href="/dev/realtime-debug">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open Realtime Debugger
+                </a>
               </Button>
             )}
 

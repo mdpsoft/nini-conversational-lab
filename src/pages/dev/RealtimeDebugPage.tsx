@@ -8,6 +8,7 @@ import { AlertTriangle, CheckCircle, XCircle, RotateCcw, Wifi, Play, Wrench, Ext
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { runRealtimeSmokeTest } from '@/utils/realtimeSmoke';
 import { toast } from 'sonner';
 
 interface DiagnosticResult {
@@ -118,196 +119,54 @@ function RealtimeDebugContent() {
         addLog('WARNING', `Realtime disabled by ${isSafeBoot ? 'SafeBoot' : 'Circuit Breaker'}`, 'warn');
       }
 
-      // Step 1: WebSocket Handshake
-      updateResult(0, { status: 'RUNNING', details: 'Testing WebSocket connection...' });
-      addLog('HANDSHAKE', 'Starting WebSocket handshake test...');
+      addLog('TEST', 'Starting comprehensive realtime diagnostics...');
       
-      const wsHandshakeResult = await new Promise<{ success: boolean; error?: string }>((resolve) => {
-        const timeout = setTimeout(() => {
-          addLog('HANDSHAKE', 'WebSocket handshake timeout (5s)', 'error');
-          resolve({ success: false, error: 'WebSocket handshake timeout (5s)' });
-        }, 5000);
-
-        try {
-          // Test if realtime socket is connected
-          const realtimeConnected = (supabase.realtime as any)?.isConnected?.() || false;
-          
-          if (realtimeConnected) {
-            clearTimeout(timeout);
-            addLog('HANDSHAKE', 'WebSocket already connected');
-            resolve({ success: true });
-            return;
-          }
-
-          // Test by creating a simple channel
-          const testChannel = supabase.channel('diag_ws_test');
-          
-          testChannel.subscribe((status) => {
-            addLog('HANDSHAKE', `Channel status: ${status}`);
-            
-            if (status === 'SUBSCRIBED') {
-              clearTimeout(timeout);
-              addLog('HANDSHAKE', 'WebSocket handshake successful');
-              resolve({ success: true });
-            } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-              clearTimeout(timeout);
-              addLog('HANDSHAKE', `Connection failed: ${status}`, 'error');
-              resolve({ success: false, error: `Connection status: ${status}` });
-            }
-          });
-          
-          // Cleanup
-          setTimeout(() => {
-            supabase.removeChannel(testChannel);
-          }, 6000);
-          
-        } catch (error: any) {
-          clearTimeout(timeout);
-          addLog('HANDSHAKE', `Error: ${error.message}`, 'error');
-          resolve({ success: false, error: error.message });
-        }
+      // Run the shared smoke test
+      const smokeResult = await runRealtimeSmokeTest(supabase);
+      
+      // Update results based on smoke test
+      updateResult(0, { 
+        status: smokeResult.handshake, 
+        details: smokeResult.handshake === 'PASS' ? '✓ WebSocket connected successfully' : '❌ WebSocket connection failed',
+        error: smokeResult.handshake === 'FAIL' ? smokeResult.error : undefined
+      });
+      
+      updateResult(1, { 
+        status: smokeResult.subscribe, 
+        details: smokeResult.subscribe === 'PASS' ? '✓ Broadcast channel subscribed' : '❌ Channel subscription failed',
+        error: smokeResult.subscribe === 'FAIL' ? smokeResult.error : undefined
+      });
+      
+      updateResult(2, { 
+        status: smokeResult.roundtrip, 
+        details: smokeResult.roundtrip === 'PASS' ? '✓ Broadcast round-trip successful' : '❌ Broadcast event failed',
+        error: smokeResult.roundtrip === 'FAIL' ? smokeResult.error : undefined
       });
 
-      if (wsHandshakeResult.success) {
-        updateResult(0, { status: 'PASS', details: '✓ WebSocket connected successfully' });
+      // Add detailed logs
+      addLog('HANDSHAKE', smokeResult.handshake === 'PASS' ? 'WebSocket connection successful' : 'WebSocket connection failed');
+      addLog('SUBSCRIBE', smokeResult.subscribe === 'PASS' ? 'Broadcast channel subscription successful' : 'Broadcast channel subscription failed');
+      addLog('ROUNDTRIP', smokeResult.roundtrip === 'PASS' ? 'Broadcast round-trip successful' : 'Broadcast round-trip failed');
+      
+      if (smokeResult.ok) {
+        addLog('SUCCESS', 'All realtime diagnostics passed!');
+        toast.success('Realtime diagnostics completed successfully');
       } else {
-        updateResult(0, { status: 'FAIL', details: '❌ WebSocket connection failed', error: wsHandshakeResult.error });
-        setIsRunning(false);
-        return;
-      }
-
-      // Step 2: Channel Subscribe  
-      updateResult(1, { status: 'RUNNING', details: 'Testing channel subscription...' });
-      addLog('SUBSCRIBE', 'Creating diagnostic channel...');
-      
-      // Clean up any existing channel
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-      }
-
-      const channel = supabase.channel('diag_test', { 
-        config: { broadcast: { ack: true } }
-      });
-      channelRef.current = channel;
-
-      const subscribeResult = await new Promise<{ success: boolean; error?: string }>((resolve) => {
-        const timeout = setTimeout(() => {
-          addLog('SUBSCRIBE', 'Channel subscription timeout (5s)', 'error');
-          resolve({ success: false, error: 'Channel subscription timeout (5s)' });
-        }, 5000);
-
-        channel.subscribe((status) => {
-          addLog('SUBSCRIBE', `Channel status: ${status}`);
-          
-          if (status === 'SUBSCRIBED') {
-            clearTimeout(timeout);
-            addLog('SUBSCRIBE', 'Channel subscribed successfully');
-            resolve({ success: true });
-          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-            clearTimeout(timeout);
-            addLog('SUBSCRIBE', `Channel error: ${status}`, 'error');
-            resolve({ success: false, error: `Channel status: ${status}` });
-          }
-        });
-      });
-
-      if (subscribeResult.success) {
-        updateResult(1, { status: 'PASS', details: '✓ Channel subscribed successfully' });
-      } else {
-        updateResult(1, { status: 'FAIL', details: '❌ Channel subscription failed', error: subscribeResult.error });
-        setIsRunning(false);
-        return;
-      }
-
-      // Step 3: Round-trip Event (using broadcast instead of postgres_changes)
-      updateResult(2, { status: 'RUNNING', details: 'Testing round-trip event...' });
-      addLog('ROUNDTRIP', 'Setting up broadcast event test...');
-      
-      const testId = Date.now().toString();
-      let gotEvent = false;
-      let receivedPayload: any = null;
-      
-      // Set up listener for broadcast events
-      const eventListener = (payload: any) => {
-        addLog('ROUNDTRIP', `Received broadcast: ${JSON.stringify(payload)}`);
-        if (payload?.who === 'debug' && payload?.testId === testId) {
-          gotEvent = true;
-          receivedPayload = payload;
-        }
-      };
-
-      // Add the broadcast listener
-      channel.on('broadcast', { event: 'ping' }, eventListener);
-
-      // Wait a moment for listener to be ready
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      addLog('ROUNDTRIP', `Sending ping with testId: ${testId}`);
-      
-      // Send broadcast event
-      const sendResult = await channel.send({
-        type: 'broadcast',
-        event: 'ping',
-        payload: { 
-          t: Date.now(), 
-          who: 'debug',
-          testId,
-          source: 'realtime-debug'
-        }
-      });
-
-      addLog('ROUNDTRIP', `Send result: ${sendResult}`);
-
-      if (sendResult !== 'ok') {
-        updateResult(2, { 
-          status: 'FAIL', 
-          details: '❌ Failed to send broadcast event', 
-          error: `Send result: ${sendResult}` 
-        });
-        setIsRunning(false);
-        return;
-      }
-
-      // Wait for the event to be received
-      await new Promise(resolve => setTimeout(resolve, 5000));
-
-      if (gotEvent && receivedPayload) {
-        addLog('ROUNDTRIP', 'Round-trip test successful!');
-        updateResult(2, { 
-          status: 'PASS', 
-          details: `✓ Round-trip successful! Received testId: ${receivedPayload.testId}` 
-        });
-        toast.success('All realtime diagnostics passed!');
-      } else {
-        addLog('ROUNDTRIP', 'No broadcast event received within 5 seconds', 'error');
-        updateResult(2, { 
-          status: 'FAIL', 
-          details: '❌ No broadcast event received within 5 seconds',
-          error: 'Event was sent but not received back'
-        });
+        addLog('ERROR', smokeResult.error || 'One or more tests failed');
+        toast.error('Realtime diagnostics failed - check logs for details');
       }
 
     } catch (error: any) {
-      console.error('Diagnostics error:', error);
-      addLog('ERROR', `Diagnostics failed: ${error.message}`, 'error');
-      toast.error(`Diagnostics failed: ${error.message}`);
+      addLog('ERROR', `Diagnostic error: ${error.message || error}`, 'error');
       
-      // Update the currently running step
-      const runningIndex = results.findIndex(r => r.status === 'RUNNING');
-      if (runningIndex >= 0) {
-        updateResult(runningIndex, { 
-          status: 'FAIL', 
-          details: '❌ Unexpected error during test',
-          error: error.message 
-        });
-      }
+      // Mark all as failed
+      updateResult(0, { status: 'FAIL', details: '❌ Test failed', error: error.message });
+      updateResult(1, { status: 'FAIL', details: '❌ Test failed', error: error.message });
+      updateResult(2, { status: 'FAIL', details: '❌ Test failed', error: error.message });
+      
+      toast.error('Diagnostic test failed');
     } finally {
       setIsRunning(false);
-      // Clean up channel
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
     }
   };
 
