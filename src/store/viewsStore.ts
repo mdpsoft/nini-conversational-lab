@@ -8,6 +8,7 @@ export interface RepositoryFilters {
   dateRange?: { start: string; end: string };
   approvalRateMin?: number;
   tags?: string[];
+  relationshipTypes?: string[]; // Added relationship type filter
 }
 
 export interface SavedView {

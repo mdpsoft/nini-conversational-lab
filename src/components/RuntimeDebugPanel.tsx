@@ -7,6 +7,7 @@ interface RuntimeDebugPanelProps {
   debug?: {
     beat?: { name: string; index: number; total: number };
     memory?: { facts: string[] };
+    scenarioContext?: { relationshipLabel?: string }; // Added scenario context
     postProcess?: {
       earlyClosureDetected?: boolean;
       questionCountBefore?: number;
@@ -29,7 +30,7 @@ interface RuntimeDebugPanelProps {
 }
 
 export function RuntimeDebugPanel({ debug }: RuntimeDebugPanelProps) {
-  if (!debug || (!debug.beat && !debug.memory && !debug.postProcess && !debug.safety && !debug.metrics)) {
+  if (!debug || (!debug.beat && !debug.memory && !debug.scenarioContext && !debug.postProcess && !debug.safety && !debug.metrics)) {
     return null;
   }
 
@@ -56,6 +57,16 @@ export function RuntimeDebugPanel({ debug }: RuntimeDebugPanelProps) {
           <div className="flex items-center gap-2">
             <Badge variant="outline">{debug.beat.name}</Badge>
             <span className="text-muted-foreground">({debug.beat.index}/{debug.beat.total})</span>
+          </div>
+        </div>
+      )}
+
+      {debug?.scenarioContext && debug.scenarioContext.relationshipLabel && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-xs">
+              {debug.scenarioContext.relationshipLabel}
+            </Badge>
           </div>
         </div>
       )}

@@ -36,6 +36,7 @@ import {
   generateExportFilename,
   downloadFile
 } from '@/utils/batchReportUtils';
+import { getRelationshipTypeLabel, getRelationshipTypeOptions } from '@/types/scenario';
 import { Link } from 'react-router-dom';
 
 export default function BatchRunReportPage() {
@@ -48,6 +49,7 @@ export default function BatchRunReportPage() {
   const [filters, setFilters] = useState<BatchReportFilters>({
     scenarioIds: [],
     profileIds: [],
+    relationshipTypes: [], // Added relationship type filter
     dateRange: {
       start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       end: new Date().toISOString().split('T')[0]
@@ -283,6 +285,36 @@ export default function BatchRunReportPage() {
                 {availableProfiles.length} available
               </Button>
             </div>
+
+            {/* Relationship Types */}
+            <div className="space-y-2">
+              <Label>Relationship Types ({filters.relationshipTypes?.length || 0} selected)</Label>
+              <Select
+                value={filters.relationshipTypes?.length === 1 ? filters.relationshipTypes[0] : "multiple"}
+                onValueChange={(value) => {
+                  if (value === "all") {
+                    updateFilters('relationshipTypes', []);
+                  } else if (value === "unset") {
+                    updateFilters('relationshipTypes', ['unset']);
+                  } else {
+                    updateFilters('relationshipTypes', [value]);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select relationship types..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Relationships</SelectItem>
+                  <SelectItem value="unset">— (unset)</SelectItem>
+                  {getRelationshipTypeOptions().map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <Separator />
@@ -379,6 +411,7 @@ export default function BatchRunReportPage() {
                     <tr className="border-b">
                       <th className="text-left p-3 font-medium">Profile</th>
                       <th className="text-left p-3 font-medium">Scenarios</th>
+                      <th className="text-left p-3 font-medium">Relationship</th>
                       <th className="text-left p-3 font-medium">Runs</th>
                       {!showDifferencesOnly || !identicalColumns.has('avgChars') ? (
                         <th className="text-left p-3 font-medium">Avg Chars</th>
@@ -415,6 +448,24 @@ export default function BatchRunReportPage() {
                         <td className="p-3">
                           <div className="max-w-48 truncate text-sm text-muted-foreground">
                             {profile.scenarioNames.join(', ')}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-wrap gap-1 max-w-32">
+                            {profile.relationshipTypes.length > 0 ? (
+                              profile.relationshipTypes.slice(0, 2).map(type => (
+                                <Badge key={type} variant="secondary" className="text-xs">
+                                  {type === 'unset' ? '—' : getRelationshipTypeLabel(type as any)}
+                                </Badge>
+                              ))
+                            ) : (
+                              <Badge variant="outline" className="text-xs">—</Badge>
+                            )}
+                            {profile.relationshipTypes.length > 2 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{profile.relationshipTypes.length - 2}
+                              </Badge>
+                            )}
                           </div>
                         </td>
                         <td className="p-3 text-center">{profile.runCount}</td>

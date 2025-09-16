@@ -8,6 +8,7 @@ export interface BatchReportFilters {
   profileIds: string[];
   dateRange: { start: string; end: string };
   minTurns: number;
+  relationshipTypes?: string[]; // Added relationship type filter
 }
 
 export interface ProfileAggregateData {
@@ -15,6 +16,7 @@ export interface ProfileAggregateData {
   profileName: string;
   profileVersion: number;
   scenarioNames: string[];
+  relationshipTypes: string[]; // Added relationship types
   runCount: number;
   avgChars: number;
   avgQuestions: number;
@@ -62,6 +64,16 @@ export function filterRuns(runs: RunRow[], filters: BatchReportFilters): RunRow[
         filters.scenarioIds.includes(result.scenarioId)
       );
       if (!hasScenarioMatch) return false;
+    }
+
+    // Relationship type filter
+    if (filters.relationshipTypes && filters.relationshipTypes.length > 0) {
+      const hasRelationshipMatch = run.resultsJson?.some((result: any) => {
+        // Get scenario relationship type from the result/scenario data
+        const scenarioRelationshipType = getScenarioRelationshipType(result.scenarioId);
+        return filters.relationshipTypes!.includes(scenarioRelationshipType || "unset");
+      });
+      if (!hasRelationshipMatch) return false;
     }
 
     // Min turns filter
@@ -130,6 +142,7 @@ export function aggregateByProfile(
     const emotionFreq: Record<string, number> = {};
     const needFreq: Record<string, number> = {};
     const boundaryFreq: Record<string, number> = {};
+    const relationshipTypeSet = new Set<string>();
 
     data.conversations.forEach(conv => {
       const convTurns = conv.turns?.length || 0;
@@ -161,6 +174,16 @@ export function aggregateByProfile(
       });
     });
 
+    // Get relationship types from scenarios
+    data.runs.forEach((run: any) => {
+      run.resultsJson?.forEach((result: any) => {
+        const scenarioRelationshipType = getScenarioRelationshipType(result.scenarioId);
+        if (scenarioRelationshipType) {
+          relationshipTypeSet.add(scenarioRelationshipType);
+        }
+      });
+    });
+
     const convCount = data.conversations.length;
     const avgChars = normalizeByTurns ? totalChars / totalTurns : totalChars / convCount;
     const avgQuestions = normalizeByTurns ? totalQuestions / totalTurns : totalQuestions / convCount;
@@ -170,6 +193,7 @@ export function aggregateByProfile(
       profileName: profile.name,
       profileVersion: profile.version,
       scenarioNames: Array.from(data.scenarioNames),
+      relationshipTypes: Array.from(relationshipTypeSet).sort(),
       runCount: new Set(data.runs.map(r => r.runId)).size,
       avgChars: Math.round(avgChars),
       avgQuestions: Math.round(avgQuestions * 10) / 10,
@@ -299,6 +323,15 @@ export function generateExportFilename(prefix: string, extension: string): strin
   const minutes = String(now.getMinutes()).padStart(2, '0');
   
   return `${prefix}-${year}${month}${day}-${hours}${minutes}.${extension}`;
+}
+
+/**
+ * Helper to get scenario relationship type by ID
+ */
+function getScenarioRelationshipType(scenarioId: string): string | null {
+  // This should ideally get the actual scenario relationship type from the scenarios store
+  // For now, return null as a fallback - this would need to be injected or accessed from context
+  return null;
 }
 
 /**

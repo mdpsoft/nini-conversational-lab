@@ -1,13 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { formatDistanceToNow } from "date-fns";
-import { Clock, User, FileText, Play, CheckCircle, XCircle } from "lucide-react";
+import { Clock, User, FileText, Play, CheckCircle, XCircle, Filter, Heart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
 import { useGuestMode } from "@/hooks/useGuestMode";
+import { getRelationshipTypeLabel, getRelationshipTypeOptions } from "@/types/scenario";
+import { useScenariosStore } from "@/store/scenarios";
+import { useViewsStore } from "@/store/viewsStore";
 
 interface RunRecord {
   id: string;
@@ -18,13 +24,21 @@ interface RunRecord {
   started_at: string;
   finished_at: string | null;
   turn_count?: number;
+  scenario?: {
+    name: string;
+    relationshipType: string | null;
+  };
 }
 
 export default function ConversationsPage() {
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [relationshipFilter, setRelationshipFilter] = useState("all");
   const { user } = useSupabaseAuth();
   const { guestMode, toggleGuestMode } = useGuestMode();
+  const { scenarios } = useScenariosStore();
+  const { savedViews, addView, applyView } = useViewsStore();
 
   useEffect(() => {
     if (!user && !guestMode) {
@@ -46,7 +60,7 @@ export default function ConversationsPage() {
           return;
         }
 
-        // Fetch runs with turn counts
+        // Fetch runs with turn counts and scenario data
         const { data: runsData, error } = await (supabase as any)
           .from('runs')
           .select(`
@@ -65,10 +79,17 @@ export default function ConversationsPage() {
 
         if (error) throw error;
 
-        const runsWithCounts = runsData?.map((run: any) => ({
-          ...run,
-          turn_count: run.turns?.[0]?.count || 0
-        })) || [];
+        const runsWithCounts = runsData?.map((run: any) => {
+          const scenario = scenarios.find(s => s.id === run.scenario_id);
+          return {
+            ...run,
+            turn_count: run.turns?.[0]?.count || 0,
+            scenario: scenario ? {
+              name: scenario.name,
+              relationshipType: scenario.relationshipType
+            } : null
+          };
+        }) || [];
 
         setRuns(runsWithCounts);
       } catch (error) {
@@ -79,7 +100,7 @@ export default function ConversationsPage() {
     }
 
     fetchRuns();
-  }, [user, guestMode]);
+  }, [user, guestMode, scenarios]);
 
   if (!user && !guestMode) {
     return (
@@ -118,16 +139,70 @@ export default function ConversationsPage() {
     );
   }
 
+  // Filter runs based on search and relationship filter
+  const filteredRuns = useMemo(() => {
+    return runs.filter(run => {
+      const matchesSearch = !searchQuery || 
+        (run.scenario?.name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (run.profile_id?.toLowerCase().includes(searchQuery.toLowerCase()));
+      
+      const matchesRelationship = relationshipFilter === "all" || 
+        run.scenario?.relationshipType === relationshipFilter ||
+        (relationshipFilter === "unset" && !run.scenario?.relationshipType);
+      
+      return matchesSearch && matchesRelationship;
+    });
+  }, [runs, searchQuery, relationshipFilter]);
+
   return (
     <div className="container mx-auto p-6">
       <header className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Conversations</h1>
-        <p className="text-muted-foreground">
-          Your recent conversation runs and test sessions
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Conversations</h1>
+            <p className="text-muted-foreground">
+              Your recent conversation runs and test sessions
+            </p>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <Card className="mt-4">
+          <CardContent className="pt-4">
+            <div className="flex gap-4 items-end">
+              <div className="flex-1">
+                <Label htmlFor="search">Search</Label>
+                <Input
+                  id="search"
+                  placeholder="Search scenarios, profiles..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <div className="w-48">
+                <Label>Relationship Type</Label>
+                <Select value={relationshipFilter} onValueChange={setRelationshipFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Relationships</SelectItem>
+                    <SelectItem value="unset">— (unset)</SelectItem>
+                    {getRelationshipTypeOptions().map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </header>
 
-      {runs.length === 0 ? (
+      {filteredRuns.length === 0 ? (
+        runs.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
@@ -148,14 +223,25 @@ export default function ConversationsPage() {
             </Button>
           </CardContent>
         </Card>
+        ) : (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <Filter className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2">No matching conversations</h3>
+              <p className="text-muted-foreground">
+                Try adjusting your search or filter criteria.
+              </p>
+            </CardContent>
+          </Card>
+        )
       ) : (
         <div className="space-y-4">
-          {runs.map((run) => (
+          {filteredRuns.map((run) => (
             <Card key={run.id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">
-                    {run.scenario_id || "Untitled Scenario"}
+                    {run.scenario?.name || run.scenario_id || "Untitled Scenario"}
                   </CardTitle>
                   <div className="flex items-center gap-2">
                     {run.finished_at ? (
@@ -172,6 +258,13 @@ export default function ConversationsPage() {
                     {run.story_mode && (
                       <Badge variant="outline">Story Mode</Badge>
                     )}
+                    <Badge variant="secondary" className="gap-1">
+                      <Heart className="h-3 w-3" />
+                      {run.scenario?.relationshipType 
+                        ? getRelationshipTypeLabel(run.scenario.relationshipType as any)
+                        : "—"
+                      }
+                    </Badge>
                   </div>
                 </div>
               </CardHeader>

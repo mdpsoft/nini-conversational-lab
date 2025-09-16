@@ -47,7 +47,8 @@ export function buildUserAIPrompt(
   seed: UserAISeed,
   beat: UserAIBeat,
   memory: UserAIMemory,
-  options: UserAIPromptOptions = {}
+  options: UserAIPromptOptions = {},
+  scenarioContext?: { relationshipLabel?: string } // Added scenario context
 ): string {
   const { allowSoftLimit = true, defaultSoftLimit = 1000 } = options;
   
@@ -182,6 +183,15 @@ export function buildUserAIPrompt(
       ? `- Beat actual (${beat.index}/${beat.total}): ${beatNameTranslated}`
       : `- Current beat (${beat.index}/${beat.total}): ${beatNameTranslated}`,
   ];
+
+  // Add relationship context if available
+  if (scenarioContext?.relationshipLabel) {
+    contextLines.push(
+      isSpanish 
+        ? `- Tipo de relación: ${scenarioContext.relationshipLabel}`
+        : `- Relationship type: ${scenarioContext.relationshipLabel}`
+    );
+  }
 
   // Memory section
   const memoryTitle = isSpanish ? '- Memoria breve:' : '- Brief memory:';

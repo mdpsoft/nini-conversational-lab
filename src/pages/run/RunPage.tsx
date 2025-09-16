@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { MaxTurnsInput } from "@/components/MaxTurnsInput";
 import { UserAIProfileSelector, RunMode } from "@/components/UserAIProfileSelector";
 import { useProfilesRepo } from "@/hooks/useProfilesRepo";
+import { getRelationshipTypeLabel } from "@/types/scenario";
 
 export default function RunPage() {
   const { scenarios, selectedIds, setSelectedIds } = useScenariosStore();
@@ -377,9 +378,16 @@ export default function RunPage() {
                     <p className="text-sm text-muted-foreground">No scenarios selected</p>
                   ) : (
                     selectedScenarios.map(scenario => (
-                      <div key={scenario.id} className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">{scenario.language}</Badge>
-                        <span className="text-sm truncate">{scenario.name}</span>
+                      <div key={scenario.id} className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">{scenario.language}</Badge>
+                          <span className="text-sm truncate">{scenario.name}</span>
+                        </div>
+                        <div className="ml-1">
+                          <Badge variant="secondary" className="text-xs">
+                            {scenario.relationshipType ? getRelationshipTypeLabel(scenario.relationshipType) : "—"}
+                          </Badge>
+                        </div>
                       </div>
                     ))
                   )}
