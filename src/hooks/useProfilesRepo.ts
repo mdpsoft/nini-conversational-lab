@@ -9,7 +9,7 @@ export function useProfilesRepo() {
   const { isAuthenticated, loading: authLoading } = useSupabaseAuth();
   const { state: dataSourceState } = useDataSource();
   const [repo, setRepo] = useState<ProfilesRepo | null>(null);
-  const [dataSource, setDataSource] = useState<DataSource>('local');
+  const [dataSource, setDataSource] = useState<'Supabase' | 'Local'>('Local');
   const [profiles, setProfiles] = useState<UserAIProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +23,7 @@ export function useProfilesRepo() {
       try {
         const { repo: resolvedRepo, source } = resolveProfilesRepo(dataSourceState.source);
         setRepo(resolvedRepo);
-        setDataSource(source);
+        setDataSource(source === 'supabase' ? 'Supabase' : 'Local');
         setError(null);
         setSchemaError(false);
       } catch (err) {
@@ -157,7 +157,7 @@ export function useProfilesRepo() {
     try {
       const { repo: resolvedRepo, source } = resolveProfilesRepo(dataSourceState.source);
       setRepo(resolvedRepo);
-      setDataSource(source);
+      setDataSource(source === 'supabase' ? 'Supabase' : 'Local');
       await refreshProfiles();
     } catch (err) {
       console.error('Failed to retry schema setup:', err);
