@@ -20,7 +20,7 @@ export default function SupabaseValidatorPage() {
   const { state: dataSourceState, getRepoHealth } = useDataSource();
   const { toast } = useToast();
 
-  // Auto-refresh health on mount and data source changes
+      // Check userai_profiles table specifically with v2.1 fields
   useEffect(() => {
     if (dataSourceState.source === 'supabase') {
       runValidation();
@@ -43,49 +43,41 @@ export default function SupabaseValidatorPage() {
 
       // Check userai_profiles table specifically with v2.1 fields
       try {
-        const { data: columnsData, error: columnsError } = await supabase.rpc('get_table_columns', { 
-          table_schema: 'public', 
-          table_name: 'userai_profiles' 
-        });
+        const { error } = await (supabase as any)
+          .from('userai_profiles')
+          .select('age_years, age_group, personality_preset')
+          .limit(1);
         
-        if (columnsError) {
-          // Fallback to simple table check
-          const { error } = await (supabase as any).from('userai_profiles').select('*').limit(1);
-          if (error) {
-            if (error.message.includes('table') && error.message.includes('not found')) {
-              setValidationResults(prev => [...prev, {
-                id: 'userai_profiles',
-                name: 'USERAI Profiles Table',
-                status: 'error',
-                message: 'Table not found - needs to be created'
-              }]);
-            } else {
-              setValidationResults(prev => [...prev, {
-                id: 'userai_profiles',
-                name: 'USERAI Profiles Table',
-                status: 'error',
-                message: error.message
-              }]);
-            }
-          } else {
+        if (error) {
+          const msg = error.message || '';
+          if (msg.includes('relation') || msg.includes('not found') || msg.includes('does not exist')) {
+            setValidationResults(prev => [...prev, {
+              id: 'userai_profiles',
+              name: 'USERAI Profiles Table',
+              status: 'error',
+              message: 'Table not found - needs to be created'
+            }]);
+          } else if (msg.includes('column')) {
             setValidationResults(prev => [...prev, {
               id: 'userai_profiles',
               name: 'USERAI Profiles Table',
               status: 'success',
-              message: 'Table accessible (basic check)'
+              message: 'Table found (legacy schema)'
+            }]);
+          } else {
+            setValidationResults(prev => [...prev, {
+              id: 'userai_profiles',
+              name: 'USERAI Profiles Table',
+              status: 'error',
+              message: msg
             }]);
           }
         } else {
-          // Check for v2.1 columns
-          const hasV21Fields = columnsData?.some((col: any) => 
-            ['age_years', 'age_group', 'personality_preset'].includes(col.column_name)
-          );
-          
           setValidationResults(prev => [...prev, {
             id: 'userai_profiles',
             name: 'USERAI Profiles Table',
             status: 'success',
-            message: hasV21Fields ? 'v2.1 schema detected with age_years, age_group, personality_preset' : 'Table found (legacy schema)'
+            message: 'v2.1 schema detected with age_years, age_group, personality_preset'
           }]);
         }
       } catch (err) {

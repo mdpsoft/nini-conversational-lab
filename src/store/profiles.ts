@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { AgeGroup } from '@/utils/age';
 
 export interface UserAIProfile {
   id: string;
@@ -29,7 +30,7 @@ export interface UserAIProfile {
   version: number;
   // v2.1 fields
   ageYears?: number | null; // 13..99
-  ageGroup?: 'teen' | 'young_adult' | 'adult' | 'middle_aged' | 'senior' | null;
+  ageGroup?: AgeGroup | null;
   personalityPreset?: string | null;
   presetSource?: 'preset' | 'custom' | null;
   strictness?: 'lenient' | 'balanced' | 'firm' | string;

@@ -16,8 +16,7 @@ import { ProfilePreview } from "./ProfilePreview";
 import { useProfilesRepo } from "@/hooks/useProfilesRepo";
 import { useToast } from "@/hooks/use-toast";
 import { createEmptyProfile } from "@/utils/createEmptyProfile";
-import { clampAge, midpointFor, labelFor } from "@/utils/age";
-import { deriveAgeGroup } from "@/utils/deriveAgeGroup";
+import { clampAge, deriveAgeGroup, midpointFor, labelFor } from "@/utils/age";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { presetToProfileFields } from "@/utils/profilePresets";
 
@@ -185,7 +184,7 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave, initialProfi
 
   const updateFormData = (updates: Partial<UserAIProfile>) => {
     setFormData(prev => {
-      const newData = { ...prev, ...updates };
+      const newData = { ...prev, ...updates } as UserAIProfile;
       
       // Auto-derive age group if age changes
       if ('ageYears' in updates && updates.ageYears !== prev.ageYears) {

@@ -12,8 +12,7 @@ import {
   presetToProfileFields, 
   UserAIPresetId
 } from "@/utils/useraiPresets";
-import { clampAge, midpointFor, labelFor } from "@/utils/age";
-import { deriveAgeGroup } from "@/utils/deriveAgeGroup";
+import { clampAge, deriveAgeGroup, midpointFor, labelFor, AgeGroup } from "@/utils/age";
 import { useToast } from "@/hooks/use-toast";
 import { coerceSelect, isUnset } from "@/utils/selectUtils";
 
@@ -32,7 +31,7 @@ export function AutoTab({ data, errors, onChange }: AutoTabProps) {
     const n = clampAge(parseInt(v, 10));
     onChange({
       ageYears: n,
-      ageGroup: n != null ? deriveAgeGroup(n) : null,
+      ageGroup: n != null ? (deriveAgeGroup(n) as AgeGroup | null) : null,
     });
   };
 
