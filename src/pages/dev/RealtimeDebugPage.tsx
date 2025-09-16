@@ -8,7 +8,7 @@ import { AlertTriangle, CheckCircle, XCircle, RotateCcw, Wifi, Play, Wrench, Ext
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
-import { runRealtimeSmokeTest } from '@/utils/realtimeSmoke';
+import { runRealtimeSmokeTest, createRealtimePublication } from '@/utils/realtimeSmoke';
 import { toast } from 'sonner';
 
 interface DiagnosticResult {
@@ -39,7 +39,8 @@ function RealtimeDebugContent() {
   const [results, setResults] = useState<DiagnosticResult[]>([
     { name: 'WebSocket Handshake', status: 'IDLE', details: 'Waiting to start...' },
     { name: 'Channel Subscribe', status: 'IDLE', details: 'Waiting to start...' },
-    { name: 'Round-trip Event', status: 'IDLE', details: 'Waiting to start...' }
+    { name: 'Round-trip Event', status: 'IDLE', details: 'Waiting to start...' },
+    { name: 'Broadcast Validation', status: 'IDLE', details: 'Waiting to start...' }
   ]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isRunning, setIsRunning] = useState(false);
@@ -69,7 +70,8 @@ function RealtimeDebugContent() {
     setResults([
       { name: 'WebSocket Handshake', status: 'IDLE', details: 'Waiting to start...' },
       { name: 'Channel Subscribe', status: 'IDLE', details: 'Waiting to start...' },
-      { name: 'Round-trip Event', status: 'IDLE', details: 'Waiting to start...' }
+      { name: 'Round-trip Event', status: 'IDLE', details: 'Waiting to start...' },
+      { name: 'Broadcast Validation', status: 'IDLE', details: 'Waiting to start...' }
     ]);
     setLogs([]);
   };
@@ -142,15 +144,25 @@ function RealtimeDebugContent() {
         details: smokeResult.roundtrip === 'PASS' ? '✓ Broadcast round-trip successful' : '❌ Broadcast event failed',
         error: smokeResult.roundtrip === 'FAIL' ? smokeResult.error : undefined
       });
+      
+      updateResult(3, { 
+        status: smokeResult.publication, 
+        details: smokeResult.publication === 'PASS' ? '✓ supabase_realtime publication exists' : '⚠️ Publication missing or misconfigured',
+        error: smokeResult.publication === 'FAIL' ? 'supabase_realtime publication not found' : undefined
+      });
 
       // Add detailed logs
       addLog('HANDSHAKE', smokeResult.handshake === 'PASS' ? 'WebSocket connection successful' : 'WebSocket connection failed');
-      addLog('SUBSCRIBE', smokeResult.subscribe === 'PASS' ? 'Broadcast channel subscription successful' : 'Broadcast channel subscription failed');
+      addLog('SUBSCRIBE', smokeResult.subscribe === 'PASS' ? `Broadcast channel subscription successful (${smokeResult.subscribeMode || 'with_ack'})` : 'Broadcast channel subscription failed');
       addLog('ROUNDTRIP', smokeResult.roundtrip === 'PASS' ? 'Broadcast round-trip successful' : 'Broadcast round-trip failed');
+      addLog('PUBLICATION', smokeResult.publication === 'PASS' ? 'supabase_realtime publication found' : 'supabase_realtime publication missing');
       
-      if (smokeResult.ok) {
+      if (smokeResult.ok && smokeResult.publication === 'PASS') {
         addLog('SUCCESS', 'All realtime diagnostics passed!');
         toast.success('Realtime diagnostics completed successfully');
+      } else if (smokeResult.ok && smokeResult.publication === 'FAIL') {
+        addLog('WARNING', 'Core realtime works but publication needs attention');
+        toast.success('Realtime diagnostics mostly successful - publication can be auto-fixed');
       } else {
         addLog('ERROR', smokeResult.error || 'One or more tests failed');
         toast.error('Realtime diagnostics failed - check logs for details');
@@ -163,10 +175,43 @@ function RealtimeDebugContent() {
       updateResult(0, { status: 'FAIL', details: '❌ Test failed', error: error.message });
       updateResult(1, { status: 'FAIL', details: '❌ Test failed', error: error.message });
       updateResult(2, { status: 'FAIL', details: '❌ Test failed', error: error.message });
+      updateResult(3, { status: 'FAIL', details: '❌ Test failed', error: error.message });
       
       toast.error('Diagnostic test failed');
     } finally {
       setIsRunning(false);
+    }
+  };
+
+  const autoFixBroadcast = async () => {
+    setIsFixing(true);
+    try {
+      addLog('AUTOFIX', 'Creating supabase_realtime publication...');
+      const result = await createRealtimePublication(supabase);
+      
+      if (result.success) {
+        addLog('AUTOFIX', 'Publication created successfully!');
+        toast.success('Broadcast publication fixed successfully');
+        
+        // Update the publication result
+        updateResult(3, { 
+          status: 'PASS', 
+          details: '✓ supabase_realtime publication created'
+        });
+        
+        // Re-run diagnostics after a brief delay
+        setTimeout(() => {
+          runDiagnostics();
+        }, 1000);
+      } else {
+        addLog('AUTOFIX', `Failed to create publication: ${result.error}`, 'error');
+        toast.error(`Auto-fix failed: ${result.error}`);
+      }
+    } catch (error: any) {
+      addLog('AUTOFIX', `Auto-fix error: ${error.message}`, 'error');
+      toast.error('Auto-fix failed');
+    } finally {
+      setIsFixing(false);
     }
   };
 
@@ -187,7 +232,9 @@ function RealtimeDebugContent() {
       summary: {
         handshake: results[0]?.status,
         subscribe: results[1]?.status,
-        roundtrip: results[2]?.status
+        roundtrip: results[2]?.status,
+        publication: results[3]?.status,
+        subscribeMode: results.find(r => r.name === 'Channel Subscribe')?.details?.includes('without_ack') ? 'without_ack' : 'with_ack'
       }
     }, null, 2);
 
@@ -209,96 +256,20 @@ function RealtimeDebugContent() {
     toast.info('Running realtime auto-fix...');
 
     try {
-      // Execute the realtime fix SQL
-      const fixSQL = `
--- Ensure publication exists and add tables (safe/idempotent)
-do $$
-begin
-  if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
-    create publication supabase_realtime;
-  end if;
-end $$;
-
--- Add tables to publication (will ignore if already added)
-do $$
-begin
-  begin
-    alter publication supabase_realtime add table public.userai_profiles;
-  exception when duplicate_object then
-    null; -- ignore if already added
-  end;
-  begin
-    alter publication supabase_realtime add table public.scenarios;
-  exception when duplicate_object then
-    null;
-  end;
-  begin
-    alter publication supabase_realtime add table public.runs;
-  exception when duplicate_object then
-    null;
-  end;
-  begin
-    alter publication supabase_realtime add table public.turns;
-  exception when duplicate_object then
-    null;
-  end;
-  begin
-    alter publication supabase_realtime add table public.events;
-  exception when duplicate_object then
-    null;
-  end;
-end $$;
-
--- Ensure replica identity full for all tables
-alter table public.userai_profiles replica identity full;
-alter table public.scenarios replica identity full;
-alter table public.runs replica identity full;
-alter table public.turns replica identity full;
-alter table public.events replica identity full;
-
--- Helper RPC to insert a diagnostic event owned by the current user
-create or replace function public.emit_diag_event(payload jsonb default '{}'::jsonb)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  new_id uuid;
-  new_run_id uuid;
-begin
-  -- Create a temporary run for the diagnostic event
-  insert into public.runs (id, owner, status)
-  values (gen_random_uuid(), auth.uid(), 'completed')
-  returning id into new_run_id;
-  
-  -- Insert the diagnostic event
-  insert into public.events (id, event_type, payload, run_id, created_at)
-  values (gen_random_uuid(), 'DIAG.PING', coalesce(payload, '{}'::jsonb), new_run_id, now())
-  returning id into new_id;
-  
-  return jsonb_build_object('status','ok','id',new_id,'run_id',new_run_id);
-end;
-$$;
-
--- Set proper permissions
-revoke all on function public.emit_diag_event(jsonb) from public;
-grant execute on function public.emit_diag_event(jsonb) to authenticated;
-      `;
-
-      // Note: This would normally use a proper SQL execution method
-      // For now, we'll show the SQL to the user to run manually
-      console.log('Auto-fix SQL to execute:', fixSQL);
+      // Use our new RPC function to create the publication
+      const result = await createRealtimePublication(supabase);
       
-      // Simulate the fix being applied
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      toast.success('Auto-fix completed! Please run diagnostics again to verify.');
-      
-      // Auto-run diagnostics after fix
-      setTimeout(() => {
-        runDiagnostics();
-      }, 1000);
+      if (result.success) {
+        addLog('AUTOFIX', 'Publication created successfully!');
+        toast.success('Auto-fix completed! Please run diagnostics again to verify.');
+        
+        // Auto-run diagnostics after fix
+        setTimeout(() => {
+          runDiagnostics();
+        }, 1000);
+      } else {
+        throw new Error(result.error || 'Failed to create publication');
+      }
 
     } catch (error: any) {
       console.error('Auto-fix error:', error);
@@ -498,8 +469,30 @@ grant execute on function public.emit_diag_event(jsonb) to authenticated;
                 Copy Diagnostics
               </Button>
               
+              {/* Auto-Fix Broadcast Button */}
+              {results[3]?.status === 'FAIL' && (
+                <Button 
+                  onClick={autoFixBroadcast}
+                  disabled={isRunning || isFixing}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  {isFixing ? (
+                    <>
+                      <RotateCcw className="h-4 w-4 animate-spin" />
+                      Fixing...
+                    </>
+                  ) : (
+                    <>
+                      <Wrench className="h-4 w-4" />
+                      Auto-Fix Broadcast
+                    </>
+                  )}
+                </Button>
+              )}
+              
               <Button 
-                onClick={autoFixRealtime}
+                onClick={autoFixBroadcast}
                 disabled={isRunning || isFixing}
                 variant="outline"
                 className="flex items-center gap-2"
@@ -512,7 +505,7 @@ grant execute on function public.emit_diag_event(jsonb) to authenticated;
                 ) : (
                   <>
                     <Wrench className="h-4 w-4" />
-                    Auto-Fix
+                    Auto-Fix Broadcast
                   </>
                 )}
               </Button>

@@ -8,7 +8,7 @@ import { AlertTriangle, CheckCircle, XCircle, RotateCcw, Database, Wifi, User, Z
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
-import { runRealtimeSmokeTest } from '@/utils/realtimeSmoke';
+import { runRealtimeSmokeTest, createRealtimePublication } from '@/utils/realtimeSmoke';
 import { toast } from 'sonner';
 
 interface DiagnosticResult {
@@ -37,6 +37,7 @@ function SupabaseCheckContent() {
   const [isRunning, setIsRunning] = useState(false);
   const [missingTables, setMissingTables] = useState<string[]>([]);
   const [needsRealtimeFix, setNeedsRealtimeFix] = useState(false);
+  const [needsBroadcastFix, setNeedsBroadcastFix] = useState(false);
   const [showRealtimeSQL, setShowRealtimeSQL] = useState(false);
   const { user, isAuthenticated } = useSupabaseAuth();
 
@@ -192,20 +193,25 @@ alter table public.events          replica identity full;`;
           const smokeResult = await runRealtimeSmokeTest(supabase);
           
           if (smokeResult.ok) {
-            addResult('Realtime Test', 'PASS', 
-              `✅ Handshake / ✅ Subscribe / ✅ Round-trip - All tests passed`
-            );
-          } else {
-            const statusIcons = [
-              smokeResult.handshake === 'PASS' ? '✅' : '❌',
-              smokeResult.subscribe === 'PASS' ? '✅' : '❌', 
-              smokeResult.roundtrip === 'PASS' ? '✅' : '❌'
-            ];
+            const statusDetails = [
+              `${smokeResult.handshake === 'PASS' ? '✅' : '❌'} Handshake`,
+              `${smokeResult.subscribe === 'PASS' ? '✅' : '❌'} Subscribe${smokeResult.subscribeMode ? ` (${smokeResult.subscribeMode})` : ''}`,
+              `${smokeResult.roundtrip === 'PASS' ? '✅' : '❌'} Round-trip`,
+              `${smokeResult.publication === 'PASS' ? '✅' : '⚠️'} Publication`
+            ].join(' / ');
             
-            addResult('Realtime Test', 'FAIL', 
-              `${statusIcons[0]} Handshake / ${statusIcons[1]} Subscribe / ${statusIcons[2]} Round-trip - ${smokeResult.error}`,
-              'Open Realtime Debugger for detailed analysis'
-            );
+            addResult('Realtime Test', 'PASS', statusDetails);
+            setNeedsBroadcastFix(smokeResult.publication === 'FAIL');
+          } else {
+            const statusDetails = [
+              `${smokeResult.handshake === 'PASS' ? '✅' : '❌'} Handshake`,
+              `${smokeResult.subscribe === 'PASS' ? '✅' : '❌'} Subscribe${smokeResult.subscribeMode ? ` (${smokeResult.subscribeMode})` : ''}`,
+              `${smokeResult.roundtrip === 'PASS' ? '✅' : '❌'} Round-trip`,
+              `${smokeResult.publication === 'PASS' ? '✅' : '⚠️'} Publication`
+            ].join(' / ');
+            
+            addResult('Realtime Test', 'FAIL', statusDetails, 'Open Realtime Debugger for detailed analysis');
+            setNeedsBroadcastFix(smokeResult.publication === 'FAIL');
           }
         } catch (error) {
           addResult('Realtime Test', 'FAIL', `Realtime test error: ${error}`, 'Open Realtime Debugger for detailed analysis');
@@ -374,6 +380,32 @@ alter table public.events          replica identity full;`;
               >
                 <Wifi className="h-4 w-4 mr-2" />
                 Auto-Fix Realtime
+              </Button>
+            )}
+
+            {/* Auto-Fix Broadcast Publication */}
+            {needsBroadcastFix && (
+              <Button 
+                onClick={async () => {
+                  try {
+                    const result = await createRealtimePublication(supabase);
+                    if (result.success) {
+                      toast.success('Broadcast publication created successfully');
+                      setNeedsBroadcastFix(false);
+                      // Re-run diagnostics after fix
+                      setTimeout(() => runDiagnostics(), 1000);
+                    } else {
+                      toast.error(`Failed to create publication: ${result.error}`);
+                    }
+                  } catch (error) {
+                    toast.error('Failed to create broadcast publication');
+                  }
+                }}
+                variant="outline"
+                className="w-full"
+              >
+                <Database className="h-4 w-4 mr-2" />
+                Auto-Fix Broadcast
               </Button>
             )}
 
