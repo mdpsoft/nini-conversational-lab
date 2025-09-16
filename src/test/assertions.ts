@@ -95,6 +95,13 @@ export const expectFieldError = async (fieldName: string, errorMessage: string) 
   })
 }
 
+// Badge assertion
+export function expectBadge(text: string) {
+  const badge = screen.getByText(text);
+  expect(badge).toBeInTheDocument();
+  expect(badge.classList.toString()).toMatch(/badge/i);
+}
+
 /**
  * Assert that Supabase auth method was called
  * @param method - The auth method name
