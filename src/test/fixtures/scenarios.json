@@ -1,0 +1,46 @@
+[
+  {
+    "id": "scenario-001",
+    "name": "Friend Conversation",
+    "description": "A casual conversation between friends",
+    "relationshipType": "just_friend",
+    "language": "en",
+    "goals": [
+      "Maintain friendly tone",
+      "Show interest in friend's life",
+      "Offer support when needed"
+    ],
+    "seedTurns": [
+      {
+        "speaker": "user",
+        "text": "Hey! How's your day going?"
+      },
+      {
+        "speaker": "ai", 
+        "text": "Hi there! My day's been pretty good, thanks for asking. How about yours?"
+      }
+    ]
+  },
+  {
+    "id": "scenario-002",
+    "name": "Workplace Discussion", 
+    "description": "Professional conversation with a coworker",
+    "relationshipType": "coworker",
+    "language": "en",
+    "goals": [
+      "Keep conversation professional",
+      "Be collaborative and helpful",
+      "Respect workplace boundaries"
+    ],
+    "seedTurns": [
+      {
+        "speaker": "user",
+        "text": "Good morning! Ready for the team meeting?"
+      },
+      {
+        "speaker": "ai",
+        "text": "Good morning! Yes, I've prepared the quarterly reports we discussed. Should be a productive meeting."
+      }
+    ]
+  }
+]
