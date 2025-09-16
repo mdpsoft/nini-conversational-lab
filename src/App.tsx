@@ -18,6 +18,7 @@ import ProfilesPage from "./pages/profiles/ProfilesPage";
 import CompareProfilesPage from "./pages/profiles/CompareProfilesPage";
 import SavedViewsPage from "./pages/settings/SavedViewsPage";
 import EnvironmentPage from "./pages/settings/EnvironmentPage";
+import AuthChecksPage from "./pages/settings/AuthChecksPage";
 import NavDebugPage from "./pages/settings/NavDebugPage";
 import LLMErrorInspectorPage from "./pages/debug/LLMErrorInspectorPage";
 import SupabaseSQLPage from "./pages/SupabaseSQLPage";
@@ -56,6 +57,7 @@ const App = () => {
             <Route path="/" element={<Layout />}>
               <Route path="settings" element={<SettingsPage />} />
               <Route path="settings/env" element={<EnvironmentPage />} />
+              <Route path="settings/auth-checks" element={<AuthChecksPage />} />
               <Route path="settings/nav-debug" element={<NavDebugPage />} />
               <Route path="scenarios" element={<ScenariosPage />} />
               <Route path="run" element={<RunPage />} />
