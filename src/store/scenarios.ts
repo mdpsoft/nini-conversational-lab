@@ -44,7 +44,7 @@ export const useScenariosStore = create<ScenariosState>()(
         }));
       },
       
-      updateScenario: (id, updates) => {
+      updateScenario: (id: string, updates: Partial<Scenario>) => {
         set((state) => ({
           scenarios: state.scenarios.map((scenario) =>
             scenario.id === id ? { ...scenario, ...updates } : scenario

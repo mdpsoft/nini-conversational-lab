@@ -10,8 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Upload, Download, Copy, Trash2, Search, Filter } from "lucide-react";
-import { useScenariosStore } from "../../store/scenarios";
-import { Scenario, getRelationshipTypeLabel, getRelationshipTypeOptions } from "../../types/scenario";
+import { useScenariosStore } from "../../store/scenarios";  
+import type { Scenario } from "../../types/scenario";
+import { getRelationshipTypeLabel, getRelationshipTypeOptions } from "../../types/scenario";
 import { exportScenarios, importJsonFile, validateFileType, validateFileSize } from "../../utils/export";
 import { useToast } from "@/hooks/use-toast";
 
@@ -81,8 +82,7 @@ export default function ScenariosPage() {
       addScenario(scenarioData);
       toast({ title: "Scenario created", description: "New scenario has been added" });
     } else {
-      const { id, ...updates } = editingScenario;
-      updateScenario(id, updates);
+      updateScenario(editingScenario.id, editingScenario);
       toast({ title: "Scenario updated", description: "Scenario has been saved" });
     }
 
