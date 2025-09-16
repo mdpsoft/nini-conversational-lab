@@ -29,7 +29,7 @@ export interface UserAIProfile {
   version: number;
   // v2.1 fields
   ageYears?: number; // 13..99
-  ageGroup?: 'teen' | 'young_adult' | 'adult' | 'mature' | 'senior' | null;
+  ageGroup?: 'teen_13_17' | 'young_18_29' | 'adult_30_49' | 'mature_50_64' | 'senior_65_plus' | null;
   personalityPreset?: 'secure_supportive' | 'empathetic_reflective' | 'direct_solution' | 'playful_optimistic' | 'analytical_calm' | 'stoic_brief' | 'anxious_reassurance' | 'avoidant_low_disclosure' | null;
   strictness?: 'soft' | 'balanced' | 'firm';
   presetSource?: 'preset' | 'custom';

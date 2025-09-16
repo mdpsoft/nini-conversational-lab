@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { UserAIProfile } from "@/store/profiles";
 import { useNavigate } from "react-router-dom";
 import { useProfilesRepo } from "@/hooks/useProfilesRepo";
-import { getAgeBadgeText } from "@/utils/profilePresets";
+import { labelFor } from "@/utils/age";
 
 export type RunMode = "single" | "batch";
 
@@ -183,7 +183,7 @@ export function UserAIProfileSelector({
                           </Badge>
                           {(profile.ageYears || profile.ageGroup) && (
                             <Badge variant="secondary" className="text-xs shrink-0">
-                              {getAgeBadgeText(profile.ageYears, profile.ageGroup)}
+                               {profile.ageYears ? `${profile.ageYears} / ${labelFor(profile.ageGroup)}` : labelFor(profile.ageGroup)}
                             </Badge>
                           )}
                         </div>
@@ -244,7 +244,7 @@ export function UserAIProfileSelector({
                   {profile.name} v{profile.version}
                   {(profile.ageYears || profile.ageGroup) && (
                     <span className="ml-1 opacity-75">
-                      ({getAgeBadgeText(profile.ageYears, profile.ageGroup)})
+                      ({profile.ageYears ? `${profile.ageYears} / ${labelFor(profile.ageGroup)}` : labelFor(profile.ageGroup)})
                     </span>
                   )}
                 </span>

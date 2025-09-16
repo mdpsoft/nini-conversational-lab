@@ -8,13 +8,12 @@ import { Wand2, Unlock } from "lucide-react";
 import { useState } from "react";
 import { UserAIProfile } from "@/store/profiles";
 import { 
-  deriveAgeGroup, 
   getPersonalityPresets, 
   presetToProfileFields, 
   PersonalityPreset, 
-  Strictness,
-  AgeGroup
+  Strictness
 } from "@/utils/profilePresets";
+import { clampAge, deriveAgeGroup, midpointFor, labelFor, AgeGroup } from "@/utils/age";
 import { useToast } from "@/hooks/use-toast";
 import { coerceSelect, isUnset } from "@/utils/selectUtils";
 
@@ -29,16 +28,23 @@ export function AutoTab({ data, errors, onChange }: AutoTabProps) {
   const { toast } = useToast();
   const presets = getPersonalityPresets();
 
-  const handleAgeChange = (ageYears: number | null) => {
-    const updates: Partial<UserAIProfile> = { ageYears: ageYears || undefined };
-    
-    if (ageYears && ageYears >= 13 && ageYears <= 99) {
-      updates.ageGroup = deriveAgeGroup(ageYears);
-    } else if (!ageYears) {
-      updates.ageGroup = null;
+  const onAgeChange = (v: string) => {
+    const n = clampAge(parseInt(v, 10));
+    onChange({
+      ageYears: n,
+      ageGroup: n != null ? deriveAgeGroup(n) : null,
+    });
+  };
+
+  const onAgeGroupChange = (g: AgeGroup | 'unset') => {
+    if (g === 'unset') {
+      onChange({ ageGroup: null });
+    } else {
+      onChange({
+        ageGroup: g,
+        ageYears: midpointFor(g), // sincronizamos hacia edad
+      });
     }
-    
-    onChange(updates);
   };
 
   const handlePresetChange = (presetId: PersonalityPreset) => {
@@ -112,12 +118,7 @@ export function AutoTab({ data, errors, onChange }: AutoTabProps) {
             min="13"
             max="99"
             value={data.ageYears || ''}
-            onChange={(e) => {
-              const age = e.target.value ? parseInt(e.target.value, 10) : null;
-              if (age === null || (age >= 13 && age <= 99)) {
-                handleAgeChange(age);
-              }
-            }}
+            onChange={(e) => onAgeChange(e.target.value)}
             placeholder="Opcional"
             className={errors.ageYears ? "border-destructive" : ""}
           />
@@ -129,21 +130,19 @@ export function AutoTab({ data, errors, onChange }: AutoTabProps) {
         <div>
           <Label htmlFor="age-group">Rango Etario</Label>
           <Select 
-            value={coerceSelect(data.ageGroup)} 
-            onValueChange={(value: AgeGroup | 'unset') => 
-              onChange({ ageGroup: value === 'unset' ? null : value as AgeGroup })
-            }
+            value={data.ageGroup ?? 'unset'} 
+            onValueChange={(val) => onAgeGroupChange(val as AgeGroup | 'unset')}
           >
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar..." />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="unset">— (ninguno)</SelectItem>
-              <SelectItem value="teen">Adolescente (13-19)</SelectItem>
-              <SelectItem value="young_adult">Adulto Joven (20-29)</SelectItem>
-              <SelectItem value="adult">Adulto (30-49)</SelectItem>
-              <SelectItem value="mature">Maduro (50-64)</SelectItem>
-              <SelectItem value="senior">Mayor (65+)</SelectItem>
+              <SelectItem value="teen_13_17">Adolescente (13–17)</SelectItem>
+              <SelectItem value="young_18_29">Joven adulto (18–29)</SelectItem>
+              <SelectItem value="adult_30_49">Adulto (30–49)</SelectItem>
+              <SelectItem value="mature_50_64">Mayor (50–64)</SelectItem>
+              <SelectItem value="senior_65_plus">Senior (65+)</SelectItem>
             </SelectContent>
           </Select>
         </div>

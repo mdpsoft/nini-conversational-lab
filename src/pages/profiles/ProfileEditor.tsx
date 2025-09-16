@@ -16,7 +16,7 @@ import { ProfilePreview } from "./ProfilePreview";
 import { useProfilesRepo } from "@/hooks/useProfilesRepo";
 import { useToast } from "@/hooks/use-toast";
 import { createEmptyProfile } from "@/utils/createEmptyProfile";
-import { deriveAgeGroup } from "@/utils/deriveAgeGroup";
+import { clampAge, deriveAgeGroup, midpointFor, labelFor, AgeGroup } from "@/utils/age";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { presetToProfileFields } from "@/utils/profilePresets";
 
@@ -213,7 +213,8 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave, initialProfi
       tone: p.tone === '' ? null : p.tone,
       conflict_style: p.conflict_style === '' ? null : p.conflict_style,
       personalityPreset: p.personalityPreset === null || p.personalityPreset === undefined ? null : p.personalityPreset,
-      ageGroup: p.ageGroup ?? (p.ageYears ? deriveAgeGroup(p.ageYears) : null),
+      ageYears: p.ageYears != null ? clampAge(p.ageYears) : null,
+      ageGroup: p.ageGroup ?? (p.ageYears != null ? deriveAgeGroup(p.ageYears) : null),
       strictness: p.strictness ?? 'balanced',
       presetSource: p.presetSource ?? (p.personalityPreset ? 'preset' : 'custom'),
     } as UserAIProfile;
@@ -234,7 +235,7 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave, initialProfi
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-7xl h-[90vh] flex flex-col">
+      <DialogContent className="max-w-7xl max-h-[85vh] overflow-y-auto p-0 flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? `Editar Perfil: ${formData.name}` : "Nuevo Perfil USERAI"}
@@ -244,9 +245,9 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave, initialProfi
         <ErrorBoundary componentName="ProfileEditor">
 
         <Suspense fallback={<div className="p-6 text-muted-foreground">Cargando editor…</div>}>
-          <div className="flex-1 flex gap-6 overflow-hidden">
+          <div className="flex-1 flex gap-4 min-h-0 p-6">
             {/* Left side - Form */}
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-4 flex flex-col">
               <Tabs defaultValue="auto" className="flex-1 flex flex-col">
                 <TabsList className="grid grid-cols-7 w-full">
                   <TabsTrigger value="auto">Auto</TabsTrigger>
@@ -316,9 +317,9 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave, initialProfi
             </div>
 
             {/* Right side - Preview */}
-            <div className="w-80 flex-shrink-0">
+            <aside className="w-[320px] shrink-0 sticky top-0 max-h-[85vh] overflow-y-auto pl-4 border-l">
               <ProfilePreview profile={formData} />
-            </div>
+            </aside>
           </div>
         </Suspense>
 

@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { UserAIProfile } from "@/store/profiles";
-import { getAgeBadgeText, getPersonalityPresets } from "@/utils/profilePresets";
+import { labelFor } from "@/utils/age";
+import { getPersonalityPresets } from "@/utils/profilePresets";
 import { isUnset, labelForUnset } from "@/utils/selectUtils";
 
 interface ProfilePreviewProps {
@@ -58,7 +59,7 @@ export function ProfilePreview({ profile }: ProfilePreviewProps) {
   const previewText = generatePreviewText(profile);
   const presets = getPersonalityPresets();
   const selectedPreset = presets.find(p => p.id === profile.personalityPreset);
-  const ageBadgeText = getAgeBadgeText(profile.ageYears, profile.ageGroup);
+  const ageBadgeText = profile.ageYears ? `${profile.ageYears} / ${labelFor(profile.ageGroup)}` : labelFor(profile.ageGroup);
   
   return (
     <Card className="h-fit sticky top-4">

@@ -1,29 +1,30 @@
 import { UserAIProfile } from "@/store/profiles";
 
-export type AgeGroup = 'teen' | 'young_adult' | 'adult' | 'mature' | 'senior';
+export type AgeGroup = 'teen_13_17' | 'young_18_29' | 'adult_30_49' | 'mature_50_64' | 'senior_65_plus';
 export type PersonalityPreset = 'secure_supportive' | 'empathetic_reflective' | 'direct_solution' | 'playful_optimistic' | 'analytical_calm' | 'stoic_brief' | 'anxious_reassurance' | 'avoidant_low_disclosure';
 export type Strictness = 'soft' | 'balanced' | 'firm';
 
-export function deriveAgeGroup(ageYears: number): AgeGroup {
-  if (ageYears >= 13 && ageYears <= 19) return 'teen';
-  if (ageYears >= 20 && ageYears <= 29) return 'young_adult';
-  if (ageYears >= 30 && ageYears <= 49) return 'adult';
-  if (ageYears >= 50 && ageYears <= 64) return 'mature';
-  return 'senior'; // 65+
+export function deriveAgeGroup(ageYears: number): AgeGroup | null {
+  if (ageYears < 13) return null;
+  if (ageYears < 18) return 'teen_13_17';
+  if (ageYears < 30) return 'young_18_29';
+  if (ageYears < 50) return 'adult_30_49';
+  if (ageYears < 65) return 'mature_50_64';
+  return 'senior_65_plus';
 }
 
 export function getAgeGroupLabel(ageGroup: AgeGroup | null): string {
   if (!ageGroup) return '—';
   
   const labels = {
-    teen: 'Adolescente',
-    young_adult: 'Adulto Joven',
-    adult: 'Adulto',
-    mature: 'Maduro',
-    senior: 'Mayor'
+    teen_13_17: 'Adolescente',
+    young_18_29: 'Adulto Joven', 
+    adult_30_49: 'Adulto',
+    mature_50_64: 'Maduro',
+    senior_65_plus: 'Mayor'
   };
   
-  return labels[ageGroup];
+  return labels[ageGroup] || '—';
 }
 
 export function getPersonalityPresets() {
