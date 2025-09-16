@@ -13,6 +13,7 @@ import { useProfilesRepo } from "@/hooks/useProfilesRepo";
 import { LocalProfilesRepo } from "@/data/useraiProfiles";
 import { exportProfiles, downloadFile, generateExportFilename } from "@/utils/profileImportExport";
 import { useToast } from "@/hooks/use-toast";
+import { createEmptyProfile } from "@/utils/createEmptyProfile";
 
 function ProfileCard({ 
   profile, 
@@ -453,6 +454,7 @@ function UpdatedProfilesPage() {
         profileId={editingProfileId || undefined}
         isOpen={isEditorOpen}
         onClose={handleCloseEditor}
+        initialProfile={!editingProfileId ? createEmptyProfile('es') : undefined}
       />
 
       <ImportProfilesModal

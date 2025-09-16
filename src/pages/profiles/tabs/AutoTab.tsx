@@ -15,6 +15,7 @@ import {
   Strictness,
   AgeGroup
 } from "@/utils/profilePresets";
+import { useToast } from "@/hooks/use-toast";
 
 interface AutoTabProps {
   data: UserAIProfile;
@@ -24,6 +25,7 @@ interface AutoTabProps {
 
 export function AutoTab({ data, errors, onChange }: AutoTabProps) {
   const [isUnlocked, setIsUnlocked] = useState(false);
+  const { toast } = useToast();
   const presets = getPersonalityPresets();
 
   const handleAgeChange = (ageYears: number | null) => {
@@ -51,16 +53,30 @@ export function AutoTab({ data, errors, onChange }: AutoTabProps) {
   const handleGenerate = () => {
     if (!data.personalityPreset) return;
     
-    const presetFields = presetToProfileFields(
-      data.personalityPreset, 
-      data.lang, 
-      data.strictness || 'balanced'
-    );
-    
-    onChange({
-      presetSource: 'preset',
-      ...presetFields
-    });
+    try {
+      const presetFields = presetToProfileFields(
+        data.personalityPreset, 
+        data.lang, 
+        data.strictness || 'balanced'
+      );
+      
+      onChange({
+        presetSource: 'preset',
+        ...presetFields
+      });
+      
+      toast({
+        title: "Profile generated",
+        description: "All tabs have been populated with preset values"
+      });
+    } catch (error) {
+      toast({
+        title: "No se pudo aplicar el preset",
+        description: error instanceof Error ? error.message : "Failed to generate profile",
+        variant: "destructive"
+      });
+      console.error('[USERAI preset apply error]', error);
+    }
   };
 
   const selectedPreset = presets.find(p => p.id === data.personalityPreset);

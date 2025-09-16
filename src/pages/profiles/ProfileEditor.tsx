@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { X, Save, Trash2, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -15,12 +15,17 @@ import { JsonTab } from "./tabs/JsonTab";
 import { ProfilePreview } from "./ProfilePreview";
 import { useProfilesRepo } from "@/hooks/useProfilesRepo";
 import { useToast } from "@/hooks/use-toast";
+import { createEmptyProfile } from "@/utils/createEmptyProfile";
+import { deriveAgeGroup } from "@/utils/deriveAgeGroup";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { presetToProfileFields } from "@/utils/profilePresets";
 
 interface ProfileEditorProps {
   profileId?: string;
   isOpen: boolean;
   onClose: () => void;
   onSave?: (profile: UserAIProfile) => Promise<void>;
+  initialProfile?: UserAIProfile;
 }
 
 function generateId(name: string, version: number): string {
@@ -32,89 +37,31 @@ function generateId(name: string, version: number): string {
   return `userai.${slug}.v${version}`;
 }
 
-export function ProfileEditor({ profileId, isOpen, onClose, onSave }: ProfileEditorProps) {
+export function ProfileEditor({ profileId, isOpen, onClose, onSave, initialProfile }: ProfileEditorProps) {
   const { profiles, upsertProfile, removeProfile } = useProfilesRepo();
   const { toast } = useToast();
   
-  const [formData, setFormData] = useState<UserAIProfile>({
-    id: "",
-    name: "",
-    description: "",
-    lang: "es",
-    tone: "",
-    traits: [],
-    attachment_style: "secure",
-    conflict_style: "",
-    emotions_focus: [],
-    needs_focus: [],
-    boundaries_focus: [],
-    verbosity: {
-      paragraphs: "unlimited",
-      soft_char_limit: 1000,
-      hard_char_limit: null,
-    },
-    question_rate: {
-      min: 0,
-      max: 2,
-    },
-    example_lines: [],
-    safety: {
-      ban_phrases: [],
-      escalation: "remind_safety_protocol",
-    },
-    version: 1,
-    // v2.1 defaults with migration
-    personalityPreset: 'secure_supportive',
-    presetSource: 'custom',
-    strictness: 'balanced',
-  });
+  const getInitialProfile = (): UserAIProfile => {
+    if (initialProfile) return initialProfile;
+    if (profileId) {
+      const profile = profiles.find(p => p.id === profileId);
+      if (profile) return hydrateProfile(profile);
+    }
+    return createEmptyProfile('es');
+  };
+
+  const [formData, setFormData] = useState<UserAIProfile>(getInitialProfile());
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const isEditing = !!profileId;
 
   useEffect(() => {
-    if (isOpen && profileId) {
-      const profile = profiles.find(p => p.id === profileId);
-      if (profile) {
-        setFormData(profile);
-      }
-    } else if (isOpen && !profileId) {
-      // Reset form for new profile
-      setFormData({
-        id: "",
-        name: "",
-        description: "",
-        lang: "es",
-        tone: "",
-        traits: [],
-        attachment_style: "secure",
-        conflict_style: "",
-        emotions_focus: [],
-        needs_focus: [],
-        boundaries_focus: [],
-        verbosity: {
-          paragraphs: "unlimited",
-          soft_char_limit: 1000,
-          hard_char_limit: null,
-        },
-        question_rate: {
-          min: 0,
-          max: 2,
-        },
-        example_lines: [],
-        safety: {
-          ban_phrases: [],
-          escalation: "remind_safety_protocol",
-        },
-        version: 1,
-        // v2.1 defaults with migration
-        personalityPreset: 'secure_supportive',
-        presetSource: 'custom',
-        strictness: 'balanced',
-      });
+    if (isOpen) {
+      console.warn('[USERAI Editor] initializing with profile:', getInitialProfile());
+      setFormData(getInitialProfile());
     }
-  }, [isOpen, profileId, profiles]);
+  }, [isOpen, profileId, profiles, initialProfile]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -236,7 +183,17 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave }: ProfileEdi
   };
 
   const updateFormData = (updates: Partial<UserAIProfile>) => {
-    setFormData(prev => ({ ...prev, ...updates }));
+    setFormData(prev => {
+      const newData = { ...prev, ...updates };
+      
+      // Auto-derive age group if age changes
+      if ('ageYears' in updates && updates.ageYears !== prev.ageYears) {
+        newData.ageGroup = deriveAgeGroup(updates.ageYears);
+      }
+      
+      return newData;
+    });
+    
     // Clear errors for updated fields
     const updatedFields = Object.keys(updates);
     setErrors(prev => {
@@ -245,6 +202,32 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave }: ProfileEdi
       return newErrors;
     });
   };
+
+  // Defensive profile hydration
+  const hydrateProfile = (p: Partial<UserAIProfile>): UserAIProfile => {
+    const base = createEmptyProfile(p.lang as any ?? 'es');
+    return {
+      ...base,
+      ...p,
+      ageGroup: p.ageGroup ?? (p.ageYears ? deriveAgeGroup(p.ageYears) : null),
+      personalityPreset: p.personalityPreset ?? null,
+      strictness: p.strictness ?? 'balanced',
+      presetSource: p.presetSource ?? (p.personalityPreset ? 'preset' : 'custom'),
+    } as UserAIProfile;
+  };
+
+  // Safe profile check
+  if (!formData) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent>
+          <div className="p-6 text-red-600">
+            No se pudo inicializar el perfil (profile=null). Intenta de nuevo.
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -255,82 +238,86 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave }: ProfileEdi
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 flex gap-6 overflow-hidden">
-          {/* Left side - Form */}
-          <div className="flex-1 flex flex-col">
-            <Tabs defaultValue="auto" className="flex-1 flex flex-col">
-              <TabsList className="grid grid-cols-7 w-full">
-                <TabsTrigger value="auto">Auto</TabsTrigger>
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="personality">Personality</TabsTrigger>
-                <TabsTrigger value="focus">Focus</TabsTrigger>
-                <TabsTrigger value="behavior">Behavior</TabsTrigger>
-                <TabsTrigger value="safety">Safety</TabsTrigger>
-                <TabsTrigger value="json">JSON</TabsTrigger>
-              </TabsList>
+        <ErrorBoundary fallback={<div className="p-6 text-red-600">Hubo un problema al cargar el editor.</div>}>
 
-              <div className="flex-1 overflow-auto mt-4">
-                <TabsContent value="auto" className="mt-0">
-                  <AutoTab
-                    data={formData}
-                    errors={errors}
-                    onChange={updateFormData}
-                  />
-                </TabsContent>
+        <Suspense fallback={<div className="p-6 text-muted-foreground">Cargando editor…</div>}>
+          <div className="flex-1 flex gap-6 overflow-hidden">
+            {/* Left side - Form */}
+            <div className="flex-1 flex flex-col">
+              <Tabs defaultValue="auto" className="flex-1 flex flex-col">
+                <TabsList className="grid grid-cols-7 w-full">
+                  <TabsTrigger value="auto">Auto</TabsTrigger>
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="personality">Personality</TabsTrigger>
+                  <TabsTrigger value="focus">Focus</TabsTrigger>
+                  <TabsTrigger value="behavior">Behavior</TabsTrigger>
+                  <TabsTrigger value="safety">Safety</TabsTrigger>
+                  <TabsTrigger value="json">JSON</TabsTrigger>
+                </TabsList>
 
-                <TabsContent value="overview" className="mt-0">
-                  <OverviewTab
-                    data={formData}
-                    errors={errors}
-                    isEditing={isEditing}
-                    onChange={updateFormData}
-                  />
-                </TabsContent>
+                <div className="flex-1 overflow-auto mt-4">
+                  <TabsContent value="auto" className="mt-0">
+                    <AutoTab
+                      data={formData}
+                      errors={errors}
+                      onChange={updateFormData}
+                    />
+                  </TabsContent>
 
-                <TabsContent value="personality" className="mt-0">
-                  <PersonalityTab
-                    data={formData}
-                    errors={errors}
-                    onChange={updateFormData}
-                  />
-                </TabsContent>
+                  <TabsContent value="overview" className="mt-0">
+                    <OverviewTab
+                      data={formData}
+                      errors={errors}
+                      isEditing={isEditing}
+                      onChange={updateFormData}
+                    />
+                  </TabsContent>
 
-                <TabsContent value="focus" className="mt-0">
-                  <FocusTab
-                    data={formData}
-                    errors={errors}
-                    onChange={updateFormData}
-                  />
-                </TabsContent>
+                  <TabsContent value="personality" className="mt-0">
+                    <PersonalityTab
+                      data={formData}
+                      errors={errors}
+                      onChange={updateFormData}
+                    />
+                  </TabsContent>
 
-                <TabsContent value="behavior" className="mt-0">
-                  <BehaviorTab
-                    data={formData}
-                    errors={errors}
-                    onChange={updateFormData}
-                  />
-                </TabsContent>
+                  <TabsContent value="focus" className="mt-0">
+                    <FocusTab
+                      data={formData}
+                      errors={errors}
+                      onChange={updateFormData}
+                    />
+                  </TabsContent>
 
-                <TabsContent value="safety" className="mt-0">
-                  <SafetyTab
-                    data={formData}
-                    errors={errors}
-                    onChange={updateFormData}
-                  />
-                </TabsContent>
+                  <TabsContent value="behavior" className="mt-0">
+                    <BehaviorTab
+                      data={formData}
+                      errors={errors}
+                      onChange={updateFormData}
+                    />
+                  </TabsContent>
 
-                <TabsContent value="json" className="mt-0">
-                  <JsonTab data={formData} />
-                </TabsContent>
-              </div>
-            </Tabs>
+                  <TabsContent value="safety" className="mt-0">
+                    <SafetyTab
+                      data={formData}
+                      errors={errors}
+                      onChange={updateFormData}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="json" className="mt-0">
+                    <JsonTab data={formData} />
+                  </TabsContent>
+                </div>
+              </Tabs>
+            </div>
+
+            {/* Right side - Preview */}
+            <div className="w-80 flex-shrink-0">
+              <ProfilePreview profile={formData} />
+            </div>
           </div>
-
-          {/* Right side - Preview */}
-          <div className="w-80 flex-shrink-0">
-            <ProfilePreview profile={formData} />
-          </div>
-        </div>
+        </Suspense>
 
         {/* Actions */}
         <div className="flex justify-between pt-4 border-t">
@@ -362,6 +349,7 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave }: ProfileEdi
             </Button>
           </div>
         </div>
+        </ErrorBoundary>
       </DialogContent>
     </Dialog>
   );
