@@ -15,6 +15,7 @@ import { DataSourceSelector } from "@/components/DataSourceSelector";
 import { useDevAutoLogin } from "@/hooks/useDevAutoLogin";
 import { useDataSource } from "@/state/dataSource";
 import { useRealtimeStatus } from "@/hooks/useRealtimeStatus";
+import { RealtimeBadge } from "@/components/RealtimeBadge";
 
 function AppSidebar() {
   return (
@@ -33,7 +34,6 @@ function Layout() {
   const { darkMode, setDarkMode } = useSettingsStore();
   const { devAutoLoginUsed } = useDevAutoLogin();
   const { state } = useDataSource();
-  const { isValid: realtimeValid, isLoading: realtimeLoading } = useRealtimeStatus();
   
   const isRealtimeDisabled = localStorage.getItem('realtimeDisabled') === 'true';
   const isSafeBoot = localStorage.getItem('safe-boot') === 'true';
@@ -64,15 +64,11 @@ function Layout() {
             <div className="flex items-center gap-4">
               {/* UI Smoke Indicator */}
               <div data-testid="ui-smoke" className="px-2 py-1 text-xs opacity-70 bg-muted rounded">
-                UI OK · {state.source} · Realtime {
-                  isRealtimeDisabled ? 'Off' : 
-                  realtimeLoading ? 'Checking...' :
-                  realtimeValid ? 'On' : 
-                  <a href="/dev/supabase-check#realtime" className="text-primary hover:underline">
-                    Off (fix)
-                  </a>
-                }
+                UI OK · {state.source}
               </div>
+              
+              {/* Realtime Badge */}
+              <RealtimeBadge />
               
               {/* SafeBoot indicator and controls */}
               {isSafeBoot && (

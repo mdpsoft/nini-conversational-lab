@@ -382,6 +382,12 @@ alter table public.events          replica identity full;`;
                     Realtime Check
                   </a>
                 </Button>
+                <Button asChild variant="ghost" size="sm" className="justify-start">
+                  <a href="/dev/realtime-debug" target="_blank">
+                    <ExternalLink className="h-3 w-3 mr-2" />
+                    Realtime Debug
+                  </a>
+                </Button>
               </div>
             </div>
           </CardContent>

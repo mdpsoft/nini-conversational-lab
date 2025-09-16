@@ -30,6 +30,7 @@ import SupabaseSQLPhase2Page from "./pages/SupabaseSQLPhase2Page";
 import ExpressCheckPage from "./pages/dev/ExpressCheckPage";
 import SupabaseCheckPage from "./pages/dev/SupabaseCheckPage";
 import RealtimeCheckPage from "./pages/dev/RealtimeCheckPage";
+import RealtimeDebugPage from "./pages/dev/RealtimeDebugPage";
 import { useSettingsStore } from "./store/settings";
 import { useScenariosStore } from "./store/scenarios";
 import { useDevAutoLogin } from "./hooks/useDevAutoLogin";
