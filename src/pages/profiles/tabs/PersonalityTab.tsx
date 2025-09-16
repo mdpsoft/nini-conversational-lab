@@ -8,6 +8,7 @@ import { X, Plus, Unlock, Lock } from "lucide-react";
 import { useState } from "react";
 import { UserAIProfile } from "@/store/profiles";
 import { getPersonalityPresets, PersonalityPreset, presetToProfileFields } from "@/utils/profilePresets";
+import { coerceSelect } from "@/utils/selectUtils";
 
 interface PersonalityTabProps {
   data: UserAIProfile;
@@ -183,9 +184,12 @@ export function PersonalityTab({ data, errors, onChange }: PersonalityTabProps) 
         <div>
           <Label htmlFor="attachment_style">Estilo de Apego</Label>
           <Select 
-            value={data.attachment_style} 
-            onValueChange={(value: "anxious" | "avoidant" | "secure" | "fearful") => 
-              onChange({ attachment_style: value, presetSource: 'custom' })
+            value={coerceSelect(data.attachment_style)} 
+            onValueChange={(value: "anxious" | "avoidant" | "secure" | "fearful" | "unset") => 
+              onChange({ 
+                attachment_style: value === 'unset' ? 'secure' : value as "anxious" | "avoidant" | "secure" | "fearful",
+                presetSource: 'custom' 
+              })
             }
             disabled={isPresetMode}
           >

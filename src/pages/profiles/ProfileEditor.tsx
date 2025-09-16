@@ -209,8 +209,11 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave, initialProfi
     return {
       ...base,
       ...p,
+      // Clean up empty strings to null for select fields
+      tone: p.tone === '' ? null : p.tone,
+      conflict_style: p.conflict_style === '' ? null : p.conflict_style,
+      personalityPreset: p.personalityPreset === null || p.personalityPreset === undefined ? null : p.personalityPreset,
       ageGroup: p.ageGroup ?? (p.ageYears ? deriveAgeGroup(p.ageYears) : null),
-      personalityPreset: p.personalityPreset ?? null,
       strictness: p.strictness ?? 'balanced',
       presetSource: p.presetSource ?? (p.personalityPreset ? 'preset' : 'custom'),
     } as UserAIProfile;

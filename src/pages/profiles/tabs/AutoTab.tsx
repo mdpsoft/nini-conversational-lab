@@ -16,6 +16,7 @@ import {
   AgeGroup
 } from "@/utils/profilePresets";
 import { useToast } from "@/hooks/use-toast";
+import { coerceSelect, isUnset } from "@/utils/selectUtils";
 
 interface AutoTabProps {
   data: UserAIProfile;
@@ -51,16 +52,20 @@ export function AutoTab({ data, errors, onChange }: AutoTabProps) {
   };
 
   const handleGenerate = () => {
-    if (!data.personalityPreset) return;
+    // Use safe defaults if personalityPreset is unset
+    const presetId = isUnset(data.personalityPreset) 
+      ? 'secure_supportive' as PersonalityPreset
+      : data.personalityPreset as PersonalityPreset;
     
     try {
       const presetFields = presetToProfileFields(
-        data.personalityPreset, 
+        presetId, 
         data.lang, 
         data.strictness || 'balanced'
       );
       
       onChange({
+        personalityPreset: presetId,
         presetSource: 'preset',
         ...presetFields
       });
@@ -124,16 +129,16 @@ export function AutoTab({ data, errors, onChange }: AutoTabProps) {
         <div>
           <Label htmlFor="age-group">Rango Etario</Label>
           <Select 
-            value={data.ageGroup || ''} 
-            onValueChange={(value: AgeGroup | '') => 
-              onChange({ ageGroup: value || null })
+            value={coerceSelect(data.ageGroup)} 
+            onValueChange={(value: AgeGroup | 'unset') => 
+              onChange({ ageGroup: value === 'unset' ? null : value as AgeGroup })
             }
           >
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar..." />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">— (ninguno)</SelectItem>
+              <SelectItem value="unset">— (ninguno)</SelectItem>
               <SelectItem value="teen">Adolescente (13-19)</SelectItem>
               <SelectItem value="young_adult">Adulto Joven (20-29)</SelectItem>
               <SelectItem value="adult">Adulto (30-49)</SelectItem>

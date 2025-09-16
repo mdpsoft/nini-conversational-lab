@@ -1,3 +1,4 @@
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -6,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { X, Plus } from "lucide-react";
 import { useState } from "react";
 import { UserAIProfile } from "@/store/profiles";
+import { coerceSelect } from "@/utils/selectUtils";
 
 interface SafetyTabProps {
   data: UserAIProfile;
@@ -130,7 +132,7 @@ export function SafetyTab({ data, errors, onChange }: SafetyTabProps) {
         </p>
         
         <Select 
-          value={isCustomEscalation ? "custom" : data.safety.escalation}
+          value={coerceSelect(isCustomEscalation ? "custom" : data.safety.escalation)}
           onValueChange={updateEscalation}
         >
           <SelectTrigger>

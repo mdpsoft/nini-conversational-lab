@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { UserAIProfile } from "@/store/profiles";
 import { getAgeBadgeText, getPersonalityPresets } from "@/utils/profilePresets";
+import { isUnset, labelForUnset } from "@/utils/selectUtils";
 
 interface ProfilePreviewProps {
   profile: UserAIProfile;
@@ -10,12 +11,15 @@ interface ProfilePreviewProps {
 function generatePreviewText(profile: UserAIProfile): string {
   const { lang, tone, traits, emotions_focus } = profile;
   
+  // Handle null/undefined tone
+  const safeTone = tone || "neutral";
+  
   // Sample traits and emotions for preview generation
   const sampleTrait = traits.length > 0 ? traits[0] : "general";
   const sampleEmotion = emotions_focus.length > 0 ? emotions_focus[0] : "neutral";
   
   if (lang === "es") {
-    switch (tone.toLowerCase()) {
+    switch (safeTone.toLowerCase()) {
       case "empático":
       case "empathetic":
       case "empático y comprensivo":
@@ -34,7 +38,7 @@ function generatePreviewText(profile: UserAIProfile): string {
     }
   } else {
     // English fallback
-    switch (tone.toLowerCase()) {
+    switch (safeTone.toLowerCase()) {
       case "empathetic":
         return `I understand this situation might trigger ${sampleEmotion}, and I want you to know that it's completely normal to feel this way. Many people with ${sampleTrait} tendencies experience similar emotions. Would you like to explore some strategies together?`;
       
@@ -104,7 +108,7 @@ export function ProfilePreview({ profile }: ProfilePreviewProps) {
           
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Tono:</span>
-            <span>{profile.tone || "Sin definir"}</span>
+            <span>{isUnset(profile.tone) ? labelForUnset() : profile.tone}</span>
           </div>
           
           <div className="flex justify-between text-sm">

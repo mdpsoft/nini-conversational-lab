@@ -9,10 +9,10 @@ export function createEmptyProfile(lang: 'es' | 'en' = 'es'): UserAIProfile {
     name: '',
     description: '',
     lang,
-    tone: '',
+    tone: null,  // Use null instead of empty string
     traits: [],
     attachment_style: 'secure',
-    conflict_style: '',
+    conflict_style: null,  // Use null instead of empty string
     emotions_focus: [],
     needs_focus: [],
     boundaries_focus: [],
