@@ -51,6 +51,13 @@ export default function ErrorLogPage() {
           <Button 
             variant="outline" 
             size="sm"
+            onClick={() => window.location.href = '/dev/express-check'}
+          >
+            ⚡ Express Check
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
             onClick={() => window.location.href = '/dev/blank-test'}
           >
             🔍 Blank Test

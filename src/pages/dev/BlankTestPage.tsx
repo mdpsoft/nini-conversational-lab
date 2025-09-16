@@ -336,6 +336,15 @@ function BlankTestPageContent() {
         <Button
           variant="outline"
           size="sm"
+          onClick={() => navigate('/dev/express-check')}
+        >
+          <ExternalLink className="h-4 w-4 mr-2" />
+          Express Check
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => navigate('/dev/error-log')}
         >
           <ExternalLink className="h-4 w-4 mr-2" />
