@@ -53,49 +53,36 @@ describe('Conversations Auth Sentinel Tests', () => {
 
   it('shows conversations list when authenticated with user', async () => {
     const mockRuns = [
-      makeRun({ 
+      {
         id: 'run-1',
-        scenarioId: 'scenario-1',
-        profileId: 'profile-1',
-        status: 'completed',
-        finishedAt: new Date().toISOString()
-      }),
-      makeRun({ 
-        id: 'run-2', 
-        scenarioId: 'scenario-2',
-        profileId: null,
-        status: 'running'
-      })
+        scenario_id: 'scenario-1',
+        profile_id: 'profile-1',
+        story_mode: true,
+        max_turns: 10,
+        started_at: new Date().toISOString(),
+        finished_at: new Date().toISOString(),
+        turns: [{ count: 5 }]
+      },
+      {
+        id: 'run-2',
+        scenario_id: 'scenario-2',
+        profile_id: null,
+        story_mode: false,
+        max_turns: 8,
+        started_at: new Date().toISOString(),
+        finished_at: null,
+        turns: [{ count: 3 }]
+      }
     ];
-
-    // Mock Supabase response
-    const supabaseMock = {
-      from: () => ({
-        select: () => ({
-          eq: () => ({
-            order: () => ({
-              limit: () => Promise.resolve({
-                data: mockRuns.map(run => ({
-                  ...run,
-                  scenario_id: run.scenarioId,
-                  profile_id: run.profileId,
-                  story_mode: run.storyMode,
-                  max_turns: run.maxTurns,
-                  started_at: run.createdAt,
-                  finished_at: run.finishedAt,
-                  turns: [{ count: 5 }] // Mock turn count
-                })),
-                error: null
-              })
-            })
-          })
-        })
-      })
-    };
 
     renderWithProviders(<ConversationsPage />, {
       user: { id: 'user-123', email: 'test@example.com' },
-      supabaseMock
+      supabaseMock: {
+        user: { id: 'user-123', email: 'test@example.com' },
+        dbResponses: {
+          runs: mockRuns
+        }
+      }
     });
 
     // Should show conversations
@@ -118,38 +105,25 @@ describe('Conversations Auth Sentinel Tests', () => {
 
   it('navigates to run details and listens to realtime events', async () => {
     const user = userEvent.setup();
-    const mockRun = makeRun({ 
+    const mockRun = {
       id: 'run-123',
-      scenarioId: 'test-scenario'
-    });
-
-    const supabaseMock = {
-      from: () => ({
-        select: () => ({
-          eq: () => ({
-            order: () => ({
-              limit: () => Promise.resolve({
-                data: [{
-                  ...mockRun,
-                  scenario_id: mockRun.scenarioId,
-                  profile_id: mockRun.profileId,
-                  story_mode: mockRun.storyMode,
-                  max_turns: mockRun.maxTurns,
-                  started_at: mockRun.createdAt,
-                  finished_at: mockRun.finishedAt,
-                  turns: [{ count: 3 }]
-                }],
-                error: null
-              })
-            })
-          })
-        })
-      })
+      scenario_id: 'test-scenario',
+      profile_id: 'profile-1',
+      story_mode: true,
+      max_turns: 10,
+      started_at: new Date().toISOString(),
+      finished_at: null,
+      turns: [{ count: 3 }]
     };
 
     renderWithProviders(<ConversationsPage />, {
       user: { id: 'user-123', email: 'test@example.com' },
-      supabaseMock
+      supabaseMock: {
+        user: { id: 'user-123', email: 'test@example.com' },
+        dbResponses: {
+          runs: [mockRun]
+        }
+      }
     });
 
     await waitFor(() => {
@@ -159,39 +133,29 @@ describe('Conversations Auth Sentinel Tests', () => {
     // Click on View Details - this would navigate in real app
     // For test purposes, we just verify the link exists and is clickable
     const viewDetailsLink = screen.getByText('View Details');
-    expect(viewDetailsLink.closest('a')).toHaveAttribute('href', `/results/${mockRun.id}`);
+    expect(viewDetailsLink.closest('a')).toHaveAttribute('href', '/results/run-123');
   });
 
   it('handles realtime events by updating conversation list', async () => {
-    const mockRun = makeRun({ id: 'run-123' });
-
-    const supabaseMock = {
-      from: () => ({
-        select: () => ({
-          eq: () => ({
-            order: () => ({
-              limit: () => Promise.resolve({
-                data: [{
-                  ...mockRun,
-                  scenario_id: mockRun.scenarioId,
-                  profile_id: mockRun.profileId,
-                  story_mode: mockRun.storyMode,
-                  max_turns: mockRun.maxTurns,
-                  started_at: mockRun.createdAt,
-                  finished_at: mockRun.finishedAt,
-                  turns: [{ count: 2 }]
-                }],
-                error: null
-              })
-            })
-          })
-        })
-      })
+    const mockRun = {
+      id: 'run-123',
+      scenario_id: 'test-scenario',
+      profile_id: 'profile-1',
+      story_mode: true,
+      max_turns: 10,
+      started_at: new Date().toISOString(),
+      finished_at: null,
+      turns: [{ count: 2 }]
     };
 
     renderWithProviders(<ConversationsPage />, {
       user: { id: 'user-123', email: 'test@example.com' },
-      supabaseMock
+      supabaseMock: {
+        user: { id: 'user-123', email: 'test@example.com' },
+        dbResponses: {
+          runs: [mockRun]
+        }
+      }
     });
 
     await waitFor(() => {

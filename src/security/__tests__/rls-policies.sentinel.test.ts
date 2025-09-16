@@ -10,8 +10,21 @@ vi.mock('@/data/runsRepo');
 vi.mock('@/data/eventsRepo');
 
 describe('RLS Contract Sentinel Tests', () => {
-  const mockScenario = makeScenario();
-  const mockProfile = makeProfile();
+  const mockScenario: import('@/types/core').Scenario = {
+    id: 'scenario-1',
+    name: 'Test Scenario',
+    language: 'en',
+    topic: 'friend',
+    attachment_style: 'secure',
+    emotional_intensity: 0.5,
+    cognitive_noise: 0.1,
+    crisis_signals: 'none',
+    goals: ['Test goal'],
+    constraints: [],
+    seed_turns: ['Hello there'],
+    success_criteria: { must: [] },
+  };
+  const mockProfile: any = { id: 'profile-1', name: 'Test Profile' };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -33,8 +46,9 @@ describe('RLS Contract Sentinel Tests', () => {
       mockProfile
     );
 
-    expect(result.conversations[0].supabaseSync?.enabled).toBe(false);
-    expect(result.conversations[0].supabaseSync?.status).toBe('local-only');
+    const conv = result.conversations[0] as any;
+    expect(conv.supabaseSync?.enabled).toBe(false);
+    expect(conv.supabaseSync?.status).toBe('local-only');
   });
 
   it('renders guest mode banner', async () => {

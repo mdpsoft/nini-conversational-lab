@@ -102,19 +102,20 @@ describe('Runner Sentinel Tests', () => {
     // Should have successful result
     expect(result.scenarioId).toBe(mockScenario.id);
     expect(result.conversations).toHaveLength(1);
-    expect(result.conversations[0].supabaseSync?.status).toBe('synced');
+    const conv = result.conversations[0] as any;
+    expect(conv.supabaseSync?.status).toBe('synced');
   });
 
   it('handles LLM error gracefully without crashing', async () => {
     // Mock LLM error
     const llmError = new Error('LLM service unavailable');
-    vi.mocked(niniAdapter.NiniAdapter.respondAsUserAI).mockResolvedValue({
+    vi.spyOn(NiniAdapter as any, 'respondAsUserAI').mockResolvedValue({
       success: true,
       text: 'Hello!',
       meta: {}
     });
 
-    vi.mocked(niniAdapter.NiniAdapter.respondWithNini).mockRejectedValue(llmError);
+    vi.spyOn(NiniAdapter as any, 'respondWithNini').mockRejectedValue(llmError);
 
     const runOptions = {
       conversationsPerScenario: 1,
@@ -148,7 +149,7 @@ describe('Runner Sentinel Tests', () => {
 
   it('shows "Synced to Supabase" badge when connected', async () => {
     // This test would be more relevant in a component test, but we can verify the sync status
-    vi.mocked(niniAdapter.NiniAdapter.respondAsUserAI).mockResolvedValue({
+    vi.spyOn(NiniAdapter as any, 'respondAsUserAI').mockResolvedValue({
       success: true,
       text: 'Test message',
       meta: {}
@@ -165,8 +166,9 @@ describe('Runner Sentinel Tests', () => {
     );
 
     // Verify sync status is set correctly
-    expect(result.conversations[0].supabaseSync?.enabled).toBe(true);
-    expect(result.conversations[0].supabaseSync?.status).toBe('synced');
-    expect(result.conversations[0].supabaseSync?.runId).toBe('test-run-123');
+    const conv = result.conversations[0] as any;
+    expect(conv.supabaseSync?.enabled).toBe(true);
+    expect(conv.supabaseSync?.status).toBe('synced');
+    expect(conv.supabaseSync?.runId).toBe('test-run-123');
   });
 });
