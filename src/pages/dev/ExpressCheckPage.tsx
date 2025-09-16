@@ -354,7 +354,10 @@ function ExpressCheckContent() {
 
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="ghost" size="sm">
-              <a href="/dev/blank-test">Full Diagnostics</a>
+              <a href="/dev/supabase-check">Supabase Health</a>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <a href="/dev/express-check">Express Check</a>
             </Button>
             <Button asChild variant="ghost" size="sm">
               <a href="/dev/error-log">Error Log</a>

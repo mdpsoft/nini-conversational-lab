@@ -333,6 +333,10 @@ function BlankTestPageContent() {
           Clear SafeBoot
         </Button>
         
+        <Button asChild variant="outline" size="sm">
+          <a href="/dev/supabase-check">Supabase Health</a>
+        </Button>
+        
         <Button
           variant="outline"
           size="sm"
