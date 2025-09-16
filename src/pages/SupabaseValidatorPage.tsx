@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, CheckCircle, Database, RefreshCw, User } from 'lucide-react';
+import { AlertCircle, CheckCircle, Database, RefreshCw, User, Wrench } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useDataSource } from '@/state/dataSource';
 import { useToast } from "@/hooks/use-toast";
+import { dbAgeGroupToUi, uiAgeGroupToDb, deriveAgeGroup } from '@/utils/age';
 
 interface ValidationResult {
   id: string;
@@ -16,7 +17,9 @@ interface ValidationResult {
 
 export default function SupabaseValidatorPage() {
   const [isLoading, setIsLoading] = useState(false);
+  const [isFixing, setIsFixing] = useState(false);
   const [validationResults, setValidationResults] = useState<ValidationResult[]>([]);
+  const [ageGroupIssues, setAgeGroupIssues] = useState<any[]>([]);
   const { state: dataSourceState, getRepoHealth } = useDataSource();
   const { toast } = useToast();
 
@@ -41,15 +44,16 @@ export default function SupabaseValidatorPage() {
         message: authError ? authError.message : `Authenticated as ${authData.user?.email || 'user'}`
       }]);
 
-      // Check userai_profiles table specifically with v2.1 fields
+      // Check userai_profiles table structure
       try {
-        const { error } = await (supabase as any)
+        // Try direct query to check if table exists and has required columns
+        const { data: directCheck, error: directError } = await (supabase as any)
           .from('userai_profiles')
-          .select('age_years, age_group, personality_preset')
+          .select('age_years, age_group, personality_preset, strictness')
           .limit(1);
-        
-        if (error) {
-          const msg = error.message || '';
+
+        if (directError) {
+          const msg = directError.message || '';
           if (msg.includes('relation') || msg.includes('not found') || msg.includes('does not exist')) {
             setValidationResults(prev => [...prev, {
               id: 'userai_profiles',
@@ -61,8 +65,8 @@ export default function SupabaseValidatorPage() {
             setValidationResults(prev => [...prev, {
               id: 'userai_profiles',
               name: 'USERAI Profiles Table',
-              status: 'success',
-              message: 'Table found (legacy schema)'
+              status: 'error',
+              message: 'Table exists but missing v2.1 columns (age_years, age_group, personality_preset, strictness)'
             }]);
           } else {
             setValidationResults(prev => [...prev, {
@@ -77,8 +81,40 @@ export default function SupabaseValidatorPage() {
             id: 'userai_profiles',
             name: 'USERAI Profiles Table',
             status: 'success',
-            message: 'v2.1 schema detected with age_years, age_group, personality_preset'
+            message: 'v2.1 schema detected with required columns'
           }]);
+
+          // Check age_group values if we have data
+          const { data: sampleData, error: sampleError } = await (supabase as any)
+            .from('userai_profiles')
+            .select('id, age_years, age_group')
+            .limit(10);
+
+          if (!sampleError && sampleData) {
+            const issues = sampleData.filter((row: any) => {
+              if (!row.age_group && !row.age_years) return false;
+              const mappedGroup = dbAgeGroupToUi(row.age_group);
+              return mappedGroup === null && row.age_years != null;
+            });
+
+            setAgeGroupIssues(issues);
+            
+            if (issues.length > 0) {
+              setValidationResults(prev => [...prev, {
+                id: 'age_group_values',
+                name: 'Age Group Values',
+                status: 'error',
+                message: `${issues.length} profiles have unmappable age_group values`
+              }]);
+            } else {
+              setValidationResults(prev => [...prev, {
+                id: 'age_group_values',
+                name: 'Age Group Values',
+                status: 'success',
+                message: 'All age_group values are valid'
+              }]);
+            }
+          }
         }
       } catch (err) {
         setValidationResults(prev => [...prev, {
@@ -133,6 +169,58 @@ export default function SupabaseValidatorPage() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAutofix = async () => {
+    if (ageGroupIssues.length === 0) return;
+    
+    setIsFixing(true);
+    try {
+      let fixed = 0;
+      let failed = 0;
+
+      for (const issue of ageGroupIssues) {
+        try {
+          const newAgeGroup = issue.age_years ? 
+            uiAgeGroupToDb(deriveAgeGroup(issue.age_years)) : 
+            null;
+
+          if (newAgeGroup) {
+            const { error } = await (supabase as any)
+              .from('userai_profiles')
+              .update({ age_group: newAgeGroup })
+              .eq('id', issue.id);
+
+            if (error) {
+              failed++;
+            } else {
+              fixed++;
+            }
+          } else {
+            failed++;
+          }
+        } catch (err) {
+          failed++;
+        }
+      }
+
+      toast({
+        title: "Autofix Complete",
+        description: `Fixed: ${fixed}, Failed: ${failed}`,
+        variant: fixed > 0 ? "default" : "destructive"
+      });
+
+      // Re-run validation
+      runValidation();
+    } catch (error) {
+      toast({
+        title: "Autofix Failed",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive"
+      });
+    } finally {
+      setIsFixing(false);
     }
   };
 
@@ -251,6 +339,29 @@ export default function SupabaseValidatorPage() {
               >
                 <Database className="h-4 w-4 mr-2" />
                 Open Supabase SQL (Profiles)
+              </Button>
+            </div>
+          )}
+
+          {/* age_group autofix button */}
+          {ageGroupIssues.length > 0 && (
+            <div className="mt-4 p-4 bg-muted rounded-lg">
+              <h4 className="font-semibold mb-2">Fix Age Group Values</h4>
+              <p className="text-sm text-muted-foreground mb-3">
+                {ageGroupIssues.length} profiles have unmappable age_group values. This will update them based on age_years.
+              </p>
+              <Button
+                onClick={handleAutofix}
+                disabled={isFixing}
+                size="sm"
+                variant="secondary"
+              >
+                {isFixing ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Wrench className="h-4 w-4 mr-2" />
+                )}
+                {isFixing ? 'Fixing...' : 'Migrate Age Groups to v2.1'}
               </Button>
             </div>
           )}

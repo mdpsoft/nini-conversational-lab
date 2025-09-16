@@ -12,7 +12,7 @@ import {
   presetToProfileFields, 
   UserAIPresetId
 } from "@/utils/useraiPresets";
-import { AgeGroup, clampAge, deriveAgeGroup, midpointFor, labelFor } from "@/utils/age";
+import { AgeGroup, clampAge, deriveAgeGroup, midpointFor, labelFor, ageGroupOptions } from "@/utils/age";
 import { useToast } from "@/hooks/use-toast";
 import { coerceSelect, isUnset } from "@/utils/selectUtils";
 
@@ -88,7 +88,7 @@ export function AutoTab({ data, errors, onChange }: AutoTabProps) {
   const selectedPreset = presets.find(p => p.id === data.personalityPreset);
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-[540px] max-h-[70vh] overflow-y-auto space-y-6">
       {/* Language */}
       <div>
         <Label htmlFor="auto-lang">Idioma</Label>
@@ -133,11 +133,11 @@ export function AutoTab({ data, errors, onChange }: AutoTabProps) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="unset">— (ninguno)</SelectItem>
-              <SelectItem value="teen_13_17">Adolescente (13–17)</SelectItem>
-              <SelectItem value="young_18_29">Joven adulto (18–29)</SelectItem>
-              <SelectItem value="adult_30_49">Adulto (30–49)</SelectItem>
-              <SelectItem value="mature_50_64">Mayor (50–64)</SelectItem>
-              <SelectItem value="senior_65_plus">Senior (65+)</SelectItem>
+              {ageGroupOptions().map(opt => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

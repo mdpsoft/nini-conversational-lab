@@ -16,7 +16,7 @@ import { ProfilePreview } from "./ProfilePreview";
 import { useProfilesRepo } from "@/hooks/useProfilesRepo";
 import { useToast } from "@/hooks/use-toast";
 import { createEmptyProfile } from "@/utils/createEmptyProfile";
-import { clampAge, deriveAgeGroup, midpointFor, labelFor } from "@/utils/age";
+import { clampAge, deriveAgeGroup, dbAgeGroupToUi, uiAgeGroupToDb } from "@/utils/age";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { presetToProfileFields } from "@/utils/profilePresets";
 
@@ -206,6 +206,13 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave, initialProfi
   // Defensive profile hydration
   const hydrateProfile = (p: Partial<UserAIProfile>): UserAIProfile => {
     const base = createEmptyProfile(p.lang as any ?? 'es');
+    
+    // Handle age_group from DB (might be legacy format)
+    let ageGroup = p.ageGroup;
+    if (typeof p.ageGroup === 'string') {
+      ageGroup = dbAgeGroupToUi(p.ageGroup);
+    }
+    
     return {
       ...base,
       ...p,
@@ -214,7 +221,7 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave, initialProfi
       conflict_style: p.conflict_style === '' ? null : p.conflict_style,
       personalityPreset: p.personalityPreset === null || p.personalityPreset === undefined ? null : p.personalityPreset,
       ageYears: p.ageYears != null ? clampAge(p.ageYears) : null,
-      ageGroup: p.ageGroup ?? (p.ageYears != null ? deriveAgeGroup(p.ageYears) : null),
+      ageGroup: ageGroup ?? (p.ageYears != null ? deriveAgeGroup(p.ageYears) : null),
       presetSource: p.presetSource ?? (p.personalityPreset ? 'preset' : 'custom'),
     } as UserAIProfile;
   };
