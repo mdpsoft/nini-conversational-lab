@@ -14,7 +14,195 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      events: {
+        Row: {
+          created_at: string | null
+          event_type: string
+          id: string
+          payload: Json | null
+          run_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_type: string
+          id?: string
+          payload?: Json | null
+          run_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          payload?: Json | null
+          run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      runs: {
+        Row: {
+          created_at: string | null
+          id: string
+          owner: string | null
+          scenario_id: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          owner?: string | null
+          scenario_id?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          owner?: string | null
+          scenario_id?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "runs_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scenarios: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          owner: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          owner?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          owner?: string | null
+        }
+        Relationships: []
+      }
+      turns: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          id: string
+          role: string | null
+          run_id: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          role?: string | null
+          run_id?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          role?: string | null
+          run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "turns_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      userai_profiles: {
+        Row: {
+          age_group: string | null
+          age_years: number | null
+          boundaries_focus: Json | null
+          created_at: string | null
+          description: string | null
+          emotions_focus: Json | null
+          example_lines: Json | null
+          id: string
+          lang: string | null
+          name: string
+          needs_focus: Json | null
+          owner: string | null
+          personality_preset: string | null
+          preset_source: string | null
+          question_rate: Json | null
+          safety: Json | null
+          strictness: string | null
+          tone: string | null
+          traits: Json | null
+          verbosity: Json | null
+        }
+        Insert: {
+          age_group?: string | null
+          age_years?: number | null
+          boundaries_focus?: Json | null
+          created_at?: string | null
+          description?: string | null
+          emotions_focus?: Json | null
+          example_lines?: Json | null
+          id?: string
+          lang?: string | null
+          name: string
+          needs_focus?: Json | null
+          owner?: string | null
+          personality_preset?: string | null
+          preset_source?: string | null
+          question_rate?: Json | null
+          safety?: Json | null
+          strictness?: string | null
+          tone?: string | null
+          traits?: Json | null
+          verbosity?: Json | null
+        }
+        Update: {
+          age_group?: string | null
+          age_years?: number | null
+          boundaries_focus?: Json | null
+          created_at?: string | null
+          description?: string | null
+          emotions_focus?: Json | null
+          example_lines?: Json | null
+          id?: string
+          lang?: string | null
+          name?: string
+          needs_focus?: Json | null
+          owner?: string | null
+          personality_preset?: string | null
+          preset_source?: string | null
+          question_rate?: Json | null
+          safety?: Json | null
+          strictness?: string | null
+          tone?: string | null
+          traits?: Json | null
+          verbosity?: Json | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
