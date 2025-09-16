@@ -13,6 +13,15 @@ export function RealtimeBadge({ className }: RealtimeBadgeProps) {
   useEffect(() => {
     const checkRealtimeStatus = async () => {
       try {
+        // Check for circuit breaker or SafeBoot first
+        const isRealtimeDisabled = localStorage.getItem('realtimeDisabled') === 'true';
+        const isSafeBoot = localStorage.getItem('safe-boot') === 'true';
+        
+        if (isRealtimeDisabled || isSafeBoot) {
+          setStatus('off');
+          return;
+        }
+
         // Create a test channel to check connectivity
         const testChannel = supabase.channel('realtime-ping-test');
         

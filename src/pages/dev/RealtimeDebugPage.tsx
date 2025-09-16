@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { AlertTriangle, CheckCircle, XCircle, RotateCcw, Wifi, Play, Wrench, ExternalLink } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { AlertTriangle, CheckCircle, XCircle, RotateCcw, Wifi, Play, Wrench, ExternalLink, Copy, AlertCircle } from 'lucide-react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
@@ -17,16 +18,45 @@ interface DiagnosticResult {
   timestamp?: Date;
 }
 
+interface LogEntry {
+  timestamp: Date;
+  stage: string;
+  message: string;
+  level: 'info' | 'error' | 'warn';
+}
+
+interface DiagnosticInfo {
+  supabaseUrl: string;
+  anonKey: string;
+  projectRef: string;
+  realtimeUrl: string;
+  authUser: string | null;
+  logs: LogEntry[];
+}
+
 function RealtimeDebugContent() {
   const [results, setResults] = useState<DiagnosticResult[]>([
     { name: 'WebSocket Handshake', status: 'IDLE', details: 'Waiting to start...' },
     { name: 'Channel Subscribe', status: 'IDLE', details: 'Waiting to start...' },
-    { name: 'Round-trip Change', status: 'IDLE', details: 'Waiting to start...' }
+    { name: 'Round-trip Event', status: 'IDLE', details: 'Waiting to start...' }
   ]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [isFixing, setIsFixing] = useState(false);
+  const [configValidation, setConfigValidation] = useState<any>(null);
   const { user, isAuthenticated } = useSupabaseAuth();
   const channelRef = useRef<any>(null);
+
+  const addLog = (stage: string, message: string, level: 'info' | 'error' | 'warn' = 'info') => {
+    const logEntry: LogEntry = {
+      timestamp: new Date(),
+      stage,
+      message,
+      level
+    };
+    setLogs(prev => [...prev.slice(-19), logEntry]); // Keep last 20 logs
+    console.log(`[${logEntry.timestamp.toISOString()}] ${stage}: ${message}`);
+  };
 
   const updateResult = (index: number, updates: Partial<DiagnosticResult>) => {
     setResults(prev => prev.map((result, i) => 
@@ -38,8 +68,35 @@ function RealtimeDebugContent() {
     setResults([
       { name: 'WebSocket Handshake', status: 'IDLE', details: 'Waiting to start...' },
       { name: 'Channel Subscribe', status: 'IDLE', details: 'Waiting to start...' },
-      { name: 'Round-trip Change', status: 'IDLE', details: 'Waiting to start...' }
+      { name: 'Round-trip Event', status: 'IDLE', details: 'Waiting to start...' }
     ]);
+    setLogs([]);
+  };
+
+  const validateConfiguration = () => {
+    const supabaseUrl = 'https://rxufqnsliggxavpfckft.supabase.co';
+    const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4dWZxbnNsaWdneGF2cGZja2Z0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5Njk1MzAsImV4cCI6MjA3MzU0NTUzMH0.Fq2--k7MY5MWy_E9_VEg-0p573TLzvufT8Ux0JD-6Pw';
+    
+    // Extract project ref from URL
+    const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || 'unknown';
+    const expectedRealtimeUrl = `wss://${projectRef}.supabase.co/realtime/v1`;
+    
+    // Mask the anon key
+    const maskedKey = anonKey.slice(0, 6) + '****' + anonKey.slice(-4);
+    
+    const validation = {
+      supabaseUrl,
+      anonKey: maskedKey,
+      projectRef,
+      realtimeUrl: expectedRealtimeUrl,
+      authUser: user?.email || 'Not authenticated',
+      urlValid: supabaseUrl.includes('.supabase.co'),
+      keyPresent: anonKey.length > 0
+    };
+    
+    setConfigValidation(validation);
+    addLog('CONFIG', `Project: ${projectRef}, Auth: ${validation.authUser}`);
+    return validation;
   };
 
   const runDiagnostics = async () => {
@@ -50,32 +107,65 @@ function RealtimeDebugContent() {
 
     setIsRunning(true);
     resetResults();
+    validateConfiguration();
 
     try {
+      // Check for SafeBoot or Circuit Breaker
+      const isRealtimeDisabled = localStorage.getItem('realtimeDisabled') === 'true';
+      const isSafeBoot = localStorage.getItem('safe-boot') === 'true';
+      
+      if (isRealtimeDisabled || isSafeBoot) {
+        addLog('WARNING', `Realtime disabled by ${isSafeBoot ? 'SafeBoot' : 'Circuit Breaker'}`, 'warn');
+      }
+
       // Step 1: WebSocket Handshake
       updateResult(0, { status: 'RUNNING', details: 'Testing WebSocket connection...' });
+      addLog('HANDSHAKE', 'Starting WebSocket handshake test...');
       
       const wsHandshakeResult = await new Promise<{ success: boolean; error?: string }>((resolve) => {
         const timeout = setTimeout(() => {
+          addLog('HANDSHAKE', 'WebSocket handshake timeout (5s)', 'error');
           resolve({ success: false, error: 'WebSocket handshake timeout (5s)' });
         }, 5000);
 
-        // Test by creating a simple channel and checking if it connects
-        const testChannel = supabase.channel('diag_ws_test');
-        
-        testChannel.subscribe((status) => {
-          clearTimeout(timeout);
-          if (status === 'SUBSCRIBED') {
+        try {
+          // Test if realtime socket is connected
+          const realtimeConnected = (supabase.realtime as any)?.isConnected?.() || false;
+          
+          if (realtimeConnected) {
+            clearTimeout(timeout);
+            addLog('HANDSHAKE', 'WebSocket already connected');
             resolve({ success: true });
-          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-            resolve({ success: false, error: `Connection status: ${status}` });
+            return;
           }
-        });
-        
-        // Cleanup
-        setTimeout(() => {
-          supabase.removeChannel(testChannel);
-        }, 6000);
+
+          // Test by creating a simple channel
+          const testChannel = supabase.channel('diag_ws_test');
+          
+          testChannel.subscribe((status) => {
+            addLog('HANDSHAKE', `Channel status: ${status}`);
+            
+            if (status === 'SUBSCRIBED') {
+              clearTimeout(timeout);
+              addLog('HANDSHAKE', 'WebSocket handshake successful');
+              resolve({ success: true });
+            } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+              clearTimeout(timeout);
+              addLog('HANDSHAKE', `Connection failed: ${status}`, 'error');
+              resolve({ success: false, error: `Connection status: ${status}` });
+            }
+          });
+          
+          // Cleanup
+          setTimeout(() => {
+            supabase.removeChannel(testChannel);
+          }, 6000);
+          
+        } catch (error: any) {
+          clearTimeout(timeout);
+          addLog('HANDSHAKE', `Error: ${error.message}`, 'error');
+          resolve({ success: false, error: error.message });
+        }
       });
 
       if (wsHandshakeResult.success) {
@@ -86,37 +176,36 @@ function RealtimeDebugContent() {
         return;
       }
 
-      // Step 2: Channel Subscribe
+      // Step 2: Channel Subscribe  
       updateResult(1, { status: 'RUNNING', details: 'Testing channel subscription...' });
+      addLog('SUBSCRIBE', 'Creating diagnostic channel...');
       
       // Clean up any existing channel
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
       }
 
-      const channel = supabase.channel('diag_pg');
+      const channel = supabase.channel('diag_test', { 
+        config: { broadcast: { ack: true } }
+      });
       channelRef.current = channel;
 
       const subscribeResult = await new Promise<{ success: boolean; error?: string }>((resolve) => {
         const timeout = setTimeout(() => {
+          addLog('SUBSCRIBE', 'Channel subscription timeout (5s)', 'error');
           resolve({ success: false, error: 'Channel subscription timeout (5s)' });
         }, 5000);
 
-        channel.on('postgres_changes', { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'events' 
-        }, () => {
-          // Listener setup - actual events will be tested in step 3
-        });
-
         channel.subscribe((status) => {
-          console.log('Channel subscription status:', status);
+          addLog('SUBSCRIBE', `Channel status: ${status}`);
+          
           if (status === 'SUBSCRIBED') {
             clearTimeout(timeout);
+            addLog('SUBSCRIBE', 'Channel subscribed successfully');
             resolve({ success: true });
           } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
             clearTimeout(timeout);
+            addLog('SUBSCRIBE', `Channel error: ${status}`, 'error');
             resolve({ success: false, error: `Channel status: ${status}` });
           }
         });
@@ -130,66 +219,77 @@ function RealtimeDebugContent() {
         return;
       }
 
-      // Step 3: Round-trip Change
+      // Step 3: Round-trip Event (using broadcast instead of postgres_changes)
       updateResult(2, { status: 'RUNNING', details: 'Testing round-trip event...' });
+      addLog('ROUNDTRIP', 'Setting up broadcast event test...');
       
-      let gotChange = false;
+      const testId = Date.now().toString();
+      let gotEvent = false;
       let receivedPayload: any = null;
       
-      // Set up listener for diagnostic events
+      // Set up listener for broadcast events
       const eventListener = (payload: any) => {
-        console.log('Received postgres change:', payload);
-        if (payload?.new?.event_type === 'DIAG.PING') {
-          gotChange = true;
-          receivedPayload = payload.new;
+        addLog('ROUNDTRIP', `Received broadcast: ${JSON.stringify(payload)}`);
+        if (payload?.who === 'debug' && payload?.testId === testId) {
+          gotEvent = true;
+          receivedPayload = payload;
         }
       };
 
-      // Add the listener
-      channel.on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'events' 
-      }, eventListener);
+      // Add the broadcast listener
+      channel.on('broadcast', { event: 'ping' }, eventListener);
 
       // Wait a moment for listener to be ready
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Try to emit diagnostic event using direct function call
-      const { data: rpcResult, error: rpcError } = await supabase
-        .rpc('emit_diag_event' as any, {
-          payload: { source: 'realtime-debug', timestamp: new Date().toISOString() }
-        });
+      addLog('ROUNDTRIP', `Sending ping with testId: ${testId}`);
+      
+      // Send broadcast event
+      const sendResult = await channel.send({
+        type: 'broadcast',
+        event: 'ping',
+        payload: { 
+          t: Date.now(), 
+          who: 'debug',
+          testId,
+          source: 'realtime-debug'
+        }
+      });
 
-      if (rpcError) {
+      addLog('ROUNDTRIP', `Send result: ${sendResult}`);
+
+      if (sendResult !== 'ok') {
         updateResult(2, { 
           status: 'FAIL', 
-          details: '❌ Failed to emit diagnostic event', 
-          error: rpcError.message 
+          details: '❌ Failed to send broadcast event', 
+          error: `Send result: ${sendResult}` 
         });
         setIsRunning(false);
         return;
       }
 
-      // Wait for the change to be received
+      // Wait for the event to be received
       await new Promise(resolve => setTimeout(resolve, 5000));
 
-      if (gotChange && receivedPayload) {
+      if (gotEvent && receivedPayload) {
+        addLog('ROUNDTRIP', 'Round-trip test successful!');
         updateResult(2, { 
           status: 'PASS', 
-          details: `✓ Round-trip successful! Received event ID: ${receivedPayload.id?.slice(0, 8)}...` 
+          details: `✓ Round-trip successful! Received testId: ${receivedPayload.testId}` 
         });
         toast.success('All realtime diagnostics passed!');
       } else {
+        addLog('ROUNDTRIP', 'No broadcast event received within 5 seconds', 'error');
         updateResult(2, { 
           status: 'FAIL', 
-          details: '❌ No change received within 5 seconds',
-          error: 'Event was inserted but realtime notification was not received'
+          details: '❌ No broadcast event received within 5 seconds',
+          error: 'Event was sent but not received back'
         });
       }
 
     } catch (error: any) {
       console.error('Diagnostics error:', error);
+      addLog('ERROR', `Diagnostics failed: ${error.message}`, 'error');
       toast.error(`Diagnostics failed: ${error.message}`);
       
       // Update the currently running step
@@ -203,6 +303,40 @@ function RealtimeDebugContent() {
       }
     } finally {
       setIsRunning(false);
+      // Clean up channel
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    }
+  };
+
+  const copyDiagnostics = async () => {
+    const diagnosticInfo: DiagnosticInfo = {
+      supabaseUrl: configValidation?.supabaseUrl || 'unknown',
+      anonKey: configValidation?.anonKey || 'unknown',
+      projectRef: configValidation?.projectRef || 'unknown',
+      realtimeUrl: configValidation?.realtimeUrl || 'unknown',
+      authUser: configValidation?.authUser || 'unknown',
+      logs: logs.slice(-20) // Last 20 logs
+    };
+
+    const diagnosticJson = JSON.stringify({
+      timestamp: new Date().toISOString(),
+      config: diagnosticInfo,
+      results: results,
+      summary: {
+        handshake: results[0]?.status,
+        subscribe: results[1]?.status,
+        roundtrip: results[2]?.status
+      }
+    }, null, 2);
+
+    try {
+      await navigator.clipboard.writeText(diagnosticJson);
+      toast.success('Diagnostics copied to clipboard');
+    } catch (error) {
+      toast.error('Failed to copy diagnostics');
     }
   };
 
@@ -316,13 +450,16 @@ grant execute on function public.emit_diag_event(jsonb) to authenticated;
   };
 
   useEffect(() => {
+    // Validate configuration on mount
+    validateConfiguration();
+    
     return () => {
       // Cleanup channel on unmount
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
       }
     };
-  }, []);
+  }, [user]);
 
   const getStatusIcon = (status: DiagnosticResult['status']) => {
     switch (status) {
@@ -349,6 +486,9 @@ grant execute on function public.emit_diag_event(jsonb) to authenticated;
 
   const failedTests = results.filter(r => r.status === 'FAIL').length;
   const passedTests = results.filter(r => r.status === 'PASS').length;
+
+  const isSafeBoot = localStorage.getItem('safe-boot') === 'true';
+  const isRealtimeDisabled = localStorage.getItem('realtimeDisabled') === 'true';
 
   if (!isAuthenticated) {
     return (
@@ -378,12 +518,71 @@ grant execute on function public.emit_diag_event(jsonb) to authenticated;
       <div className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
           <Wifi className="h-8 w-8 text-primary" />
-          Realtime Connection Debug
+          Realtime Client Debugger
         </h1>
         <p className="text-muted-foreground mt-1">
-          End-to-end realtime diagnostics with WebSocket, channel, and round-trip testing
+          Comprehensive realtime diagnostics: WebSocket handshake → channel subscribe → round-trip events
         </p>
       </div>
+
+      {/* Configuration Validation */}
+      {configValidation && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-base font-medium">Configuration Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <strong>Supabase URL:</strong>
+                <code className="ml-2 bg-muted px-1 rounded text-xs">
+                  {configValidation.supabaseUrl}
+                </code>
+              </div>
+              <div>
+                <strong>Project Ref:</strong>
+                <span className="ml-2 font-mono">{configValidation.projectRef}</span>
+              </div>
+              <div>
+                <strong>Anon Key:</strong>
+                <code className="ml-2 bg-muted px-1 rounded text-xs">
+                  {configValidation.anonKey}
+                </code>
+              </div>
+              <div>
+                <strong>Auth User:</strong>
+                <span className="ml-2">{configValidation.authUser}</span>
+              </div>
+              <div>
+                <strong>Realtime URL:</strong>
+                <code className="ml-2 bg-muted px-1 rounded text-xs">
+                  {configValidation.realtimeUrl}
+                </code>
+              </div>
+              <div>
+                <strong>Status:</strong>
+                <span className={`ml-2 ${configValidation.urlValid && configValidation.keyPresent ? 'text-green-600' : 'text-red-600'}`}>
+                  {configValidation.urlValid && configValidation.keyPresent ? '✓ Valid' : '❌ Invalid'}
+                </span>
+              </div>
+            </div>
+            
+            {(isSafeBoot || isRealtimeDisabled) && (
+              <div className="mt-4 p-3 bg-yellow-50 border-l-4 border-yellow-200 rounded">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-yellow-600" />
+                  <span className="font-medium text-yellow-800">
+                    {isSafeBoot ? 'SafeBoot Mode Active' : 'Realtime Disabled by Circuit Breaker'}
+                  </span>
+                </div>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Realtime functionality may be limited. Tests can still be run to diagnose issues.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Status Summary */}
       {(failedTests > 0 || passedTests > 0) && (
@@ -420,14 +619,24 @@ grant execute on function public.emit_diag_event(jsonb) to authenticated;
                 {isRunning ? (
                   <>
                     <RotateCcw className="h-4 w-4 animate-spin" />
-                    Running...
+                    Running Full Test...
                   </>
                 ) : (
                   <>
                     <Play className="h-4 w-4" />
-                    Run Diagnostics
+                    Run Full Test
                   </>
                 )}
+              </Button>
+              
+              <Button 
+                onClick={copyDiagnostics}
+                disabled={isRunning}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <Copy className="h-4 w-4" />
+                Copy Diagnostics
               </Button>
               
               <Button 
@@ -444,7 +653,7 @@ grant execute on function public.emit_diag_event(jsonb) to authenticated;
                 ) : (
                   <>
                     <Wrench className="h-4 w-4" />
-                    Auto-Fix Realtime
+                    Auto-Fix
                   </>
                 )}
               </Button>
@@ -460,73 +669,142 @@ grant execute on function public.emit_diag_event(jsonb) to authenticated;
         </CardContent>
       </Card>
 
-      {/* Diagnostic Results */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-medium">Diagnostic Steps</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {results.map((result, index) => (
-              <div key={index} className="border rounded-lg p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <div className="text-xl font-mono text-muted-foreground">
-                      {index + 1}.
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Diagnostic Results */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-medium">Test Results</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {results.map((result, index) => (
+                <div key={index} className="border rounded-lg p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="text-xl font-mono text-muted-foreground">
+                        {index + 1}.
+                      </div>
+                      {getStatusIcon(result.status)}
+                      <div>
+                        <h3 className="font-medium">{result.name}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {result.details}
+                        </p>
+                      </div>
                     </div>
-                    {getStatusIcon(result.status)}
-                    <div>
-                      <h3 className="font-medium">{result.name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {result.details}
+                    <div className="flex items-center gap-2">
+                      {getStatusBadge(result.status)}
+                      {result.timestamp && (
+                        <span className="text-xs text-muted-foreground">
+                          {result.timestamp.toLocaleTimeString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {result.error && (
+                    <div className="mt-3 p-3 bg-red-50 rounded-lg border-l-4 border-red-200">
+                      <p className="text-sm text-red-800">
+                        <strong>Error:</strong> {result.error}
                       </p>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {getStatusBadge(result.status)}
-                    {result.timestamp && (
-                      <span className="text-xs text-muted-foreground">
-                        {result.timestamp.toLocaleTimeString()}
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Live Log Viewer */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-medium flex items-center justify-between">
+              <span>Live Logs</span>
+              <Badge variant="outline">{logs.length} entries</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-96">
+              <div className="space-y-1 font-mono text-xs">
+                {logs.map((log, index) => (
+                  <div 
+                    key={index} 
+                    className={`p-2 rounded ${
+                      log.level === 'error' ? 'bg-red-50 text-red-800' :
+                      log.level === 'warn' ? 'bg-yellow-50 text-yellow-800' :
+                      'bg-gray-50 text-gray-800'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="text-muted-foreground whitespace-nowrap">
+                        {log.timestamp.toLocaleTimeString()}
+                      </span>
+                      <span className="font-semibold min-w-[80px]">
+                        [{log.stage}]
+                      </span>
+                      <span className="break-all">
+                        {log.message}
+                      </span>
+                    </div>
+                  </div>
+                ))}
                 
-                {result.error && (
-                  <div className="mt-3 p-3 bg-red-50 rounded-lg border-l-4 border-red-200">
-                    <p className="text-sm text-red-800">
-                      <strong>Error:</strong> {result.error}
-                    </p>
+                {logs.length === 0 && (
+                  <div className="text-center text-muted-foreground py-8">
+                    No logs yet. Run a test to see detailed output.
                   </div>
                 )}
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Help Section */}
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="text-base font-medium">Troubleshooting Guide</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3 text-sm">
-            <div>
-              <strong>WebSocket Handshake fails:</strong> Check network connectivity and firewall settings.
+      {/* Auto-Fix Guide */}
+      {failedTests > 0 && (
+        <Card className="mt-6 border-orange-200 bg-orange-50">
+          <CardHeader>
+            <CardTitle className="text-base font-medium text-orange-800">Auto-Fix Guide</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 text-sm">
+              {results[0]?.status === 'FAIL' && (
+                <div className="p-3 bg-red-50 rounded border-l-4 border-red-200">
+                  <strong className="text-red-800">WebSocket Handshake Failed:</strong>
+                  <ul className="mt-1 text-red-700 list-disc list-inside">
+                    <li>Check network connectivity and firewall settings</li>
+                    <li>Verify SUPABASE_URL is correct</li>
+                    <li>Ensure WebSocket connections are allowed</li>
+                    <li><a href="/dev/supabase-check" className="underline">Run Supabase Check</a> for detailed diagnostics</li>
+                  </ul>
+                </div>
+              )}
+              
+              {results[1]?.status === 'FAIL' && (
+                <div className="p-3 bg-yellow-50 rounded border-l-4 border-yellow-200">
+                  <strong className="text-yellow-800">Channel Subscribe Failed:</strong>
+                  <ul className="mt-1 text-yellow-700 list-disc list-inside">
+                    <li>Check if realtime publication is configured</li>
+                    <li>Verify RLS policies allow channel access</li>
+                    <li>Use the Auto-Fix button to configure realtime</li>
+                  </ul>
+                </div>
+              )}
+              
+              {results[2]?.status === 'FAIL' && (
+                <div className="p-3 bg-blue-50 rounded border-l-4 border-blue-200">
+                  <strong className="text-blue-800">Round-trip Event Failed:</strong>
+                  <ul className="mt-1 text-blue-700 list-disc list-inside">
+                    <li>Broadcast events may not be working</li>
+                    <li>Try testing with <a href="/dev/realtime-check" className="underline">Realtime Check</a></li>
+                    <li>Check browser console for additional errors</li>
+                  </ul>
+                </div>
+              )}
             </div>
-            <div>
-              <strong>Channel Subscribe fails:</strong> Verify RLS policies allow access to the events table.
-            </div>
-            <div>
-              <strong>Round-trip Change fails:</strong> Ensure the emit_diag_event RPC function exists and realtime publication is configured.
-            </div>
-            <div className="pt-2 text-muted-foreground">
-              Use the "Auto-Fix Realtime" button to automatically configure realtime publication and create the required RPC function.
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
