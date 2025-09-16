@@ -139,6 +139,12 @@ export class SupabaseProfilesRepo implements ProfilesRepo {
         escalation: 'remind_safety_protocol',
       },
       version: row.version || 1,
+      // v2.1 fields
+      ageYears: row.age_years || null,
+      ageGroup: row.age_group || null,
+      personalityPreset: row.personality_preset || null,
+      presetSource: row.preset_source || null,
+      strictness: row.strictness || 'balanced',
     };
   }
 
@@ -160,8 +166,13 @@ export class SupabaseProfilesRepo implements ProfilesRepo {
       question_rate: profile.question_rate,
       example_lines: profile.example_lines,
       safety: profile.safety,
-      beat_bias: null, // Not used in current UserAIProfile interface
       version: profile.version,
+      // v2.1 fields
+      age_years: profile.ageYears || null,
+      age_group: profile.ageGroup || null,
+      personality_preset: profile.personalityPreset || null,
+      preset_source: profile.presetSource || null,
+      strictness: profile.strictness || 'balanced',
       updated_at: new Date().toISOString(),
     };
   }

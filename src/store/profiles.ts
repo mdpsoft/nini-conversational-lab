@@ -28,10 +28,11 @@ export interface UserAIProfile {
   };
   version: number;
   // v2.1 fields
-  ageYears?: number; // 13..99
-  ageGroup?: 'teen_13_17' | 'young_18_29' | 'adult_30_49' | 'mature_50_64' | 'senior_65_plus' | null;
-  personalityPreset?: 'anxious_dependent' | 'insecure_selfcritical' | 'sensitive_vulnerable' | 'jealous_controlling' | 'avoidant_distanced' | 'hurt_distrustful' | 'burned_out_overwhelmed' | 'resilient_in_progress' | null;
-  presetSource?: 'preset' | 'custom';
+  ageYears?: number | null; // 13..99
+  ageGroup?: 'teen' | 'young_adult' | 'adult' | 'middle_aged' | 'senior' | null;
+  personalityPreset?: string | null;
+  presetSource?: 'preset' | 'custom' | null;
+  strictness?: 'lenient' | 'balanced' | 'firm' | string;
 }
 
 interface ProfilesStore {

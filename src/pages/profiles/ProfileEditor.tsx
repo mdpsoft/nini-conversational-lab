@@ -16,7 +16,8 @@ import { ProfilePreview } from "./ProfilePreview";
 import { useProfilesRepo } from "@/hooks/useProfilesRepo";
 import { useToast } from "@/hooks/use-toast";
 import { createEmptyProfile } from "@/utils/createEmptyProfile";
-import { clampAge, deriveAgeGroup, midpointFor, labelFor, AgeGroup } from "@/utils/age";
+import { clampAge, midpointFor, labelFor } from "@/utils/age";
+import { deriveAgeGroup } from "@/utils/deriveAgeGroup";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { presetToProfileFields } from "@/utils/profilePresets";
 

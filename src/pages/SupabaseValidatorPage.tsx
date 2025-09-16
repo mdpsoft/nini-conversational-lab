@@ -41,9 +41,65 @@ export default function SupabaseValidatorPage() {
         message: authError ? authError.message : `Authenticated as ${authData.user?.email || 'user'}`
       }]);
 
-      // Check tables
-      const tablesToCheck = ['userai_profiles', 'runs', 'turns', 'events'];
-      for (const table of tablesToCheck) {
+      // Check userai_profiles table specifically with v2.1 fields
+      try {
+        const { data: columnsData, error: columnsError } = await supabase.rpc('get_table_columns', { 
+          table_schema: 'public', 
+          table_name: 'userai_profiles' 
+        });
+        
+        if (columnsError) {
+          // Fallback to simple table check
+          const { error } = await (supabase as any).from('userai_profiles').select('*').limit(1);
+          if (error) {
+            if (error.message.includes('table') && error.message.includes('not found')) {
+              setValidationResults(prev => [...prev, {
+                id: 'userai_profiles',
+                name: 'USERAI Profiles Table',
+                status: 'error',
+                message: 'Table not found - needs to be created'
+              }]);
+            } else {
+              setValidationResults(prev => [...prev, {
+                id: 'userai_profiles',
+                name: 'USERAI Profiles Table',
+                status: 'error',
+                message: error.message
+              }]);
+            }
+          } else {
+            setValidationResults(prev => [...prev, {
+              id: 'userai_profiles',
+              name: 'USERAI Profiles Table',
+              status: 'success',
+              message: 'Table accessible (basic check)'
+            }]);
+          }
+        } else {
+          // Check for v2.1 columns
+          const hasV21Fields = columnsData?.some((col: any) => 
+            ['age_years', 'age_group', 'personality_preset'].includes(col.column_name)
+          );
+          
+          setValidationResults(prev => [...prev, {
+            id: 'userai_profiles',
+            name: 'USERAI Profiles Table',
+            status: 'success',
+            message: hasV21Fields ? 'v2.1 schema detected with age_years, age_group, personality_preset' : 'Table found (legacy schema)'
+          }]);
+        }
+      } catch (err) {
+        setValidationResults(prev => [...prev, {
+          id: 'userai_profiles',
+          name: 'USERAI Profiles Table',
+          status: 'error',  
+          message: `Failed to check table: ${err}`
+        }]);
+      }
+
+      // Check other tables
+      const otherTables = ['runs', 'turns', 'events'];
+      for (const table of otherTables) {
         try {
           const { error } = await (supabase as any).from(table).select('*').limit(1);
           setValidationResults(prev => [...prev, {
@@ -186,15 +242,23 @@ export default function SupabaseValidatorPage() {
           {/* userai_profiles specific fix button */}
           {validationResults.find(r => r.id === 'userai_profiles' && r.status === 'error') && (
             <div className="mt-4 p-4 bg-muted rounded-lg">
-              <h4 className="font-semibold mb-2">Fix Missing userai_profiles Table</h4>
+              <h4 className="font-semibold mb-2">Create USERAI Profiles Table</h4>
               <p className="text-sm text-muted-foreground mb-3">
-                The userai_profiles table is missing. Click below to create it:
+                The userai_profiles table is missing. Click below to open the SQL editor with the v2.1 schema:
               </p>
               <Button
-                onClick={() => window.open('/supabase-sql', '_blank')}
+                onClick={() => {
+                  window.open('/supabase-sql', '_blank');
+                  // Auto-scroll to profiles section after a short delay
+                  setTimeout(() => {
+                    const profilesSection = document.querySelector('[data-section="profiles-schema"]');
+                    profilesSection?.scrollIntoView({ behavior: 'smooth' });
+                  }, 500);
+                }}
                 size="sm"
               >
-                Open Supabase SQL Editor
+                <Database className="h-4 w-4 mr-2" />
+                Open Supabase SQL (Profiles)
               </Button>
             </div>
           )}
