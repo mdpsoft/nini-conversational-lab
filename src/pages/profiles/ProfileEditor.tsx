@@ -234,20 +234,20 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave, initialProfi
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-7xl max-h-[85vh] overflow-y-auto p-0 flex flex-col">
-        <DialogHeader>
-          <DialogTitle>
-            {isEditing ? `Editar Perfil: ${formData.name}` : "Nuevo Perfil USERAI"}
-          </DialogTitle>
-        </DialogHeader>
-
+      <DialogContent className="max-w-6xl w-[min(1200px,95vw)] h-[min(88vh,900px)] flex flex-col p-0">
         <ErrorBoundary componentName="ProfileEditor">
+          
+          <Suspense fallback={<div className="p-6 text-muted-foreground">Cargando editor…</div>}>
+            <Tabs defaultValue="auto" className="flex-1 flex flex-col">
+              
+              {/* Header + Tabs */}
+              <div className="shrink-0 border-b bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 px-6 py-3">
+                <DialogHeader className="mb-4">
+                  <DialogTitle>
+                    {isEditing ? `Editar Perfil: ${formData.name}` : "Nuevo Perfil USERAI"}
+                  </DialogTitle>
+                </DialogHeader>
 
-        <Suspense fallback={<div className="p-6 text-muted-foreground">Cargando editor…</div>}>
-          <div className="flex-1 flex gap-4 min-h-0 p-6">
-            {/* Left side - Form */}
-            <div className="flex-1 min-h-0 overflow-y-auto pr-4 flex flex-col">
-              <Tabs defaultValue="auto" className="flex-1 flex flex-col">
                 <TabsList className="grid grid-cols-7 w-full">
                   <TabsTrigger value="auto">Auto</TabsTrigger>
                   <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -257,101 +257,112 @@ export function ProfileEditor({ profileId, isOpen, onClose, onSave, initialProfi
                   <TabsTrigger value="safety">Safety</TabsTrigger>
                   <TabsTrigger value="json">JSON</TabsTrigger>
                 </TabsList>
+              </div>
 
-                <div className="flex-1 overflow-auto mt-4">
-                  <TabsContent value="auto" className="mt-0">
-                    <AutoTab
-                      data={formData}
-                      errors={errors}
-                      onChange={updateFormData}
-                    />
-                  </TabsContent>
+              {/* Body */}
+              <div className="flex-1 grid grid-cols-12 gap-6 px-6 py-4 md:grid-cols-12 sm:grid-cols-1 min-h-0">
+                {/* Left (form) */}
+                <div className="col-span-8 overflow-hidden sm:col-span-1">
+                  <div className="h-full overflow-y-auto pr-2">
+                    <TabsContent value="auto" className="mt-0 space-y-6">
+                      <AutoTab
+                        data={formData}
+                        errors={errors}
+                        onChange={updateFormData}
+                      />
+                    </TabsContent>
 
-                  <TabsContent value="overview" className="mt-0">
-                    <OverviewTab
-                      data={formData}
-                      errors={errors}
-                      isEditing={isEditing}
-                      onChange={updateFormData}
-                    />
-                  </TabsContent>
+                    <TabsContent value="overview" className="mt-0 space-y-6">
+                      <OverviewTab
+                        data={formData}
+                        errors={errors}
+                        isEditing={isEditing}
+                        onChange={updateFormData}
+                      />
+                    </TabsContent>
 
-                  <TabsContent value="personality" className="mt-0">
-                    <PersonalityTab
-                      data={formData}
-                      errors={errors}
-                      onChange={updateFormData}
-                    />
-                  </TabsContent>
+                    <TabsContent value="personality" className="mt-0 space-y-6">
+                      <PersonalityTab
+                        data={formData}
+                        errors={errors}
+                        onChange={updateFormData}
+                      />
+                    </TabsContent>
 
-                  <TabsContent value="focus" className="mt-0">
-                    <FocusTab
-                      data={formData}
-                      errors={errors}
-                      onChange={updateFormData}
-                    />
-                  </TabsContent>
+                    <TabsContent value="focus" className="mt-0 space-y-6">
+                      <FocusTab
+                        data={formData}
+                        errors={errors}
+                        onChange={updateFormData}
+                      />
+                    </TabsContent>
 
-                  <TabsContent value="behavior" className="mt-0">
-                    <BehaviorTab
-                      data={formData}
-                      errors={errors}
-                      onChange={updateFormData}
-                    />
-                  </TabsContent>
+                    <TabsContent value="behavior" className="mt-0 space-y-6">
+                      <BehaviorTab
+                        data={formData}
+                        errors={errors}
+                        onChange={updateFormData}
+                      />
+                    </TabsContent>
 
-                  <TabsContent value="safety" className="mt-0">
-                    <SafetyTab
-                      data={formData}
-                      errors={errors}
-                      onChange={updateFormData}
-                    />
-                  </TabsContent>
+                    <TabsContent value="safety" className="mt-0 space-y-6">
+                      <SafetyTab
+                        data={formData}
+                        errors={errors}
+                        onChange={updateFormData}
+                      />
+                    </TabsContent>
 
-                  <TabsContent value="json" className="mt-0">
-                    <JsonTab data={formData} />
-                  </TabsContent>
+                    <TabsContent value="json" className="mt-0 space-y-6">
+                      <JsonTab data={formData} />
+                    </TabsContent>
+                  </div>
                 </div>
-              </Tabs>
+
+                {/* Right (preview) */}
+                <aside className="col-span-4 sm:col-span-1">
+                  <div className="sticky top-3 max-h-[calc(88vh-160px)] overflow-y-auto">
+                    <ProfilePreview profile={formData} />
+                  </div>
+                </aside>
+              </div>
+              
+            </Tabs>
+          </Suspense>
+
+          {/* Footer */}
+          <div className="shrink-0 border-t bg-white px-6 py-3">
+            <div className="flex justify-between">
+              <div className="flex gap-2">
+                {isEditing && (
+                  <>
+                    <Button variant="outline" onClick={handleDuplicate}>
+                      <Copy className="h-4 w-4" />
+                      Duplicar
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      onClick={handleDelete}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Eliminar
+                    </Button>
+                  </>
+                )}
+              </div>
+              
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={onClose}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleSave} disabled={isSaving}>
+                  <Save className="h-4 w-4" />
+                  {isSaving ? "Guardando..." : isEditing ? "Guardar Cambios" : "Crear Perfil"}
+                </Button>
+              </div>
             </div>
+          </div>
 
-            {/* Right side - Preview */}
-            <aside className="w-[320px] shrink-0 sticky top-0 max-h-[85vh] overflow-y-auto pl-4 border-l">
-              <ProfilePreview profile={formData} />
-            </aside>
-          </div>
-        </Suspense>
-
-        {/* Actions */}
-        <div className="flex justify-between pt-4 border-t">
-          <div className="flex gap-2">
-            {isEditing && (
-              <>
-                <Button variant="outline" onClick={handleDuplicate}>
-                  <Copy className="h-4 w-4" />
-                  Duplicar
-                </Button>
-                <Button 
-                  variant="destructive" 
-                  onClick={handleDelete}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Eliminar
-                </Button>
-              </>
-            )}
-          </div>
-          
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving}>
-              <Save className="h-4 w-4" />
-              {isSaving ? "Guardando..." : isEditing ? "Guardar Cambios" : "Crear Perfil"}
-            </Button>
-          </div>
-        </div>
         </ErrorBoundary>
       </DialogContent>
     </Dialog>
