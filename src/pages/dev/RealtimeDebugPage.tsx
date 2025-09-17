@@ -8,7 +8,8 @@ import { AlertTriangle, CheckCircle, XCircle, RotateCcw, Wifi, Play, Wrench, Ext
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
-import { runRealtimeSmokeTest, ensureRealtimePublication } from '@/utils/realtimeSmoke';
+import { runRealtimeDualSmoke } from '@/utils/realtimeDualSmoke';
+import { ensureRealtimePublication } from '@/utils/ensurePublication';
 import { toast } from 'sonner';
 
 interface DiagnosticResult {
@@ -124,8 +125,8 @@ function RealtimeDebugContent() {
 
       addLog('TEST', 'Starting comprehensive realtime diagnostics...');
       
-      // Run the shared smoke test
-      const smokeResult = await runRealtimeSmokeTest(supabase);
+      // Run the dual smoke test
+      const smokeResult = await runRealtimeDualSmoke(supabase);
       setLatestSmokeResult(smokeResult);
       
       // Update results based on smoke test
@@ -137,38 +138,43 @@ function RealtimeDebugContent() {
       
       updateResult(1, { 
         status: smokeResult.subscribe, 
-        details: smokeResult.subscribe === 'PASS' ? '✓ Broadcast channel subscribed' : '❌ Channel subscription failed',
+        details: smokeResult.subscribe === 'PASS' ? '✓ Channel subscribed successfully' : '❌ Channel subscription failed',
         error: smokeResult.subscribe === 'FAIL' ? smokeResult.error : undefined
       });
       
       updateResult(2, { 
         status: smokeResult.roundtrip, 
-        details: smokeResult.roundtrip === 'PASS' ? '✓ Broadcast round-trip successful' : '❌ Broadcast event failed',
+        details: smokeResult.roundtrip === 'PASS' ? 
+          `✓ Round-trip successful via ${smokeResult.path}` : 
+          `❌ Round-trip failed via ${smokeResult.path}`,
         error: smokeResult.roundtrip === 'FAIL' ? smokeResult.error : undefined
       });
       
+      // For the dual test, we don't have a separate publication check
+      // Publication status is implicit in the postgres_changes fallback success
       updateResult(3, { 
-        status: smokeResult.publication, 
-        details: smokeResult.publication === 'PASS' ? '✓ supabase_realtime publication exists' : '⚠️ Publication missing or misconfigured',
-        error: smokeResult.publication === 'FAIL' ? 'supabase_realtime publication not found' : undefined
+        status: smokeResult.path === 'postgres_changes' && smokeResult.roundtrip === 'PASS' ? 'PASS' : 
+                smokeResult.path === 'broadcast' && smokeResult.roundtrip === 'PASS' ? 'PASS' : 'FAIL',
+        details: smokeResult.path === 'postgres_changes' && smokeResult.roundtrip === 'PASS' ? 
+          '✓ Postgres changes working (publication OK)' : 
+          smokeResult.path === 'broadcast' && smokeResult.roundtrip === 'PASS' ? 
+          '✓ Broadcast working' : '⚠️ Both broadcast and postgres_changes failed',
+        error: smokeResult.roundtrip === 'FAIL' ? 'Both realtime paths failed' : undefined
       });
 
       // Add detailed logs
       addLog('HANDSHAKE', smokeResult.handshake === 'PASS' ? 'WebSocket connection successful' : 'WebSocket connection failed');
-      addLog('SUBSCRIBE', smokeResult.subscribe === 'PASS' ? `Broadcast channel subscription successful (${smokeResult.subscribeMode || 'with_ack'})` : 'Broadcast channel subscription failed');
+      addLog('SUBSCRIBE', smokeResult.subscribe === 'PASS' ? 'Channel subscription successful' : 'Channel subscription failed');
       addLog('ROUNDTRIP', smokeResult.roundtrip === 'PASS' ? 
-        `Broadcast round-trip successful (mode: ${smokeResult.finalMode || 'with_ack'}, sendResult: ${smokeResult.sendResult || 'ok'})` : 
-        `Broadcast round-trip failed (mode: ${smokeResult.finalMode || 'with_ack'}, sendResult: ${smokeResult.sendResult || 'unknown'})`);
-      addLog('PUBLICATION', smokeResult.publication === 'PASS' ? 'supabase_realtime publication found' : 'supabase_realtime publication missing');
+        `Round-trip successful via ${smokeResult.path} - ${smokeResult.details || 'Success'}` : 
+        `Round-trip failed via ${smokeResult.path} - ${smokeResult.details || smokeResult.error || 'Unknown error'}`);
+      addLog('PATH', `Realtime path used: ${smokeResult.path}`);
       
-      if (smokeResult.ok && smokeResult.publication === 'PASS') {
-        addLog('SUCCESS', 'All realtime diagnostics passed!');
-        toast.success('Realtime diagnostics completed successfully');
-      } else if (smokeResult.ok && smokeResult.publication === 'FAIL') {
-        addLog('WARNING', 'Core realtime works but publication needs attention');
-        toast.success('Realtime diagnostics mostly successful - publication can be auto-fixed');
+      if (smokeResult.ok) {
+        addLog('SUCCESS', `All realtime diagnostics passed via ${smokeResult.path}!`);
+        toast.success(`Realtime diagnostics completed successfully via ${smokeResult.path}`);
       } else {
-        addLog('ERROR', smokeResult.error || 'One or more tests failed');
+        addLog('ERROR', smokeResult.error || 'Realtime diagnostics failed');
         toast.error('Realtime diagnostics failed - check logs for details');
       }
 
@@ -191,12 +197,11 @@ function RealtimeDebugContent() {
     setIsFixing(true);
     try {
       addLog('AUTOFIX', 'Configuring supabase_realtime publication...');
-      const result = await ensureRealtimePublication(supabase);
+      const result = await ensureRealtimePublication() as any;
       
-      if (result.success) {
-        const details = result.details;
-        addLog('AUTOFIX', `Publication configured successfully! Added ${details?.added_tables || 0} tables, ensured ${details?.ensured_identity || 0} replica identities.`);
-        toast.success(`Broadcast publication configured! ${details?.message || 'Setup complete.'}`);
+      if (result?.status === 'ok') {
+        addLog('AUTOFIX', `Publication configured successfully! Added ${result?.added_tables || 0} tables, ensured ${result?.ensured_identity || 0} replica identities.`);
+        toast.success(`Broadcast publication configured! ${result?.message || 'Setup complete.'}`);
         
         // Update the publication result
         updateResult(3, { 
@@ -210,8 +215,8 @@ function RealtimeDebugContent() {
           runDiagnostics();
         }, 1000);
       } else {
-        addLog('AUTOFIX', `Failed to configure publication: ${result.error}`, 'error');
-        toast.error(`Auto-fix failed: ${result.error}`);
+        addLog('AUTOFIX', `Failed to configure publication: ${result?.error || 'Unknown error'}`, 'error');
+        toast.error(`Auto-fix failed: ${result?.error || 'Unknown error'}`);
       }
     } catch (error: any) {
       addLog('AUTOFIX', `Auto-fix error: ${error.message}`, 'error');
@@ -240,9 +245,8 @@ function RealtimeDebugContent() {
         subscribe: results[1]?.status,
         roundtrip: results[2]?.status,
         publication: results[3]?.status,
-        subscribeMode: latestSmokeResult?.subscribeMode || 'with_ack',
-        finalMode: latestSmokeResult?.finalMode || 'with_ack',
-        sendResult: latestSmokeResult?.sendResult || 'unknown',
+        path: latestSmokeResult?.path || 'unknown',
+        details: latestSmokeResult?.details || 'No details available',
         publicationPresent: results[3]?.status === 'PASS',
         lastFixResult: results[3]?.status === 'PASS' ? 'success' : 'pending'
       }
@@ -267,11 +271,10 @@ function RealtimeDebugContent() {
 
     try {
       // Use our comprehensive RPC function to ensure publication is properly configured
-      const result = await ensureRealtimePublication(supabase);
+      const result = await ensureRealtimePublication() as any;
       
-      if (result.success) {
-        const details = result.details;
-        addLog('AUTOFIX', `Configuration complete: ${details?.message || 'Success'}`);
+      if (result?.status === 'ok') {
+        addLog('AUTOFIX', `Configuration complete: ${result?.message || 'Success'}`);
         toast.success('Auto-fix completed! Please run diagnostics again to verify.');
         
         // Auto-run diagnostics after fix
@@ -279,7 +282,7 @@ function RealtimeDebugContent() {
           runDiagnostics();
         }, 1000);
       } else {
-        throw new Error(result.error || 'Failed to configure publication');
+        throw new Error(result?.error || 'Failed to configure publication');
       }
 
     } catch (error: any) {

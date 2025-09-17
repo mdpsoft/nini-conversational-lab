@@ -8,7 +8,8 @@ import { AlertTriangle, CheckCircle, XCircle, RotateCcw, Database, Wifi, User, Z
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
-import { runRealtimeSmokeTest, ensureRealtimePublication } from '@/utils/realtimeSmoke';
+import { runRealtimeDualSmoke } from '@/utils/realtimeDualSmoke';
+import { ensureRealtimePublication } from '@/utils/ensurePublication';
 import { toast } from 'sonner';
 
 interface DiagnosticResult {
@@ -199,28 +200,28 @@ alter table public.events          replica identity full;`;
         );
       } else {
         try {
-          const smokeResult = await runRealtimeSmokeTest(supabase);
+          const smokeResult = await runRealtimeDualSmoke(supabase);
           
           if (smokeResult.ok) {
             const statusDetails = [
               `${smokeResult.handshake === 'PASS' ? '✅' : '❌'} Handshake`,
-              `${smokeResult.subscribe === 'PASS' ? '✅' : '❌'} Subscribe${smokeResult.subscribeMode ? ` (${smokeResult.subscribeMode})` : ''}`,
-              `${smokeResult.roundtrip === 'PASS' ? '✅' : '❌'} Round-trip`,
-              `${smokeResult.publication === 'PASS' ? '✅' : '⚠️'} Publication`
+              `${smokeResult.subscribe === 'PASS' ? '✅' : '❌'} Subscribe`,
+              `${smokeResult.roundtrip === 'PASS' ? '✅' : '❌'} Round-trip (${smokeResult.path})`,
+              `${smokeResult.path === 'postgres_changes' && smokeResult.roundtrip === 'PASS' ? '✅' : smokeResult.path === 'broadcast' ? '➖' : '⚠️'} Publication`
             ].join(' / ');
             
             addResult('Realtime Test', 'PASS', statusDetails);
-            setNeedsBroadcastFix(smokeResult.publication === 'FAIL');
+            setNeedsBroadcastFix(smokeResult.path === 'broadcast' && smokeResult.roundtrip === 'FAIL');
           } else {
             const statusDetails = [
               `${smokeResult.handshake === 'PASS' ? '✅' : '❌'} Handshake`,
-              `${smokeResult.subscribe === 'PASS' ? '✅' : '❌'} Subscribe${smokeResult.subscribeMode ? ` (${smokeResult.subscribeMode})` : ''}`,
-              `${smokeResult.roundtrip === 'PASS' ? '✅' : '❌'} Round-trip`,
-              `${smokeResult.publication === 'PASS' ? '✅' : '⚠️'} Publication`
+              `${smokeResult.subscribe === 'PASS' ? '✅' : '❌'} Subscribe`,
+              `${smokeResult.roundtrip === 'PASS' ? '✅' : '❌'} Round-trip (${smokeResult.path})`,
+              `${smokeResult.path === 'postgres_changes' && smokeResult.roundtrip === 'PASS' ? '✅' : '⚠️'} Publication`
             ].join(' / ');
             
             addResult('Realtime Test', 'FAIL', statusDetails, 'Open Realtime Debugger for detailed analysis');
-            setNeedsBroadcastFix(smokeResult.publication === 'FAIL');
+            setNeedsBroadcastFix(true);
           }
         } catch (error) {
           addResult('Realtime Test', 'FAIL', `Realtime test error: ${error}`, 'Open Realtime Debugger for detailed analysis');
@@ -397,17 +398,16 @@ alter table public.events          replica identity full;`;
               <Button 
                 onClick={async () => {
                   try {
-                    const result = await ensureRealtimePublication(supabase);
-                    if (result.success) {
-                      const details = result.details;
+                    const result = await ensureRealtimePublication() as any;
+                    if (result?.status === 'ok') {
                       toast.success(
-                        `Broadcast publication configured! Added ${details?.added_tables || 0} tables, ensured ${details?.ensured_identity || 0} replica identities.`
+                        `Broadcast publication configured! Added ${result?.added_tables || 0} tables, ensured ${result?.ensured_identity || 0} replica identities.`
                       );
                       setNeedsBroadcastFix(false);
                       // Re-run diagnostics after fix
                       setTimeout(() => runDiagnostics(), 1000);
                     } else {
-                      toast.error(`Failed to configure publication: ${result.error}`);
+                      toast.error(`Failed to configure publication: ${result?.error || 'Unknown error'}`);
                     }
                   } catch (error) {
                     toast.error('Failed to configure broadcast publication');

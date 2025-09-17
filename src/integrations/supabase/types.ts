@@ -46,6 +46,24 @@ export type Database = {
           },
         ]
       }
+      realtime_diag: {
+        Row: {
+          created_at: string
+          id: string
+          test_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          test_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          test_id?: string
+        }
+        Relationships: []
+      }
       runs: {
         Row: {
           created_at: string | null
