@@ -208,16 +208,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      check_realtime_publication: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      create_realtime_publication: {
+      check_realtime_publication_status: {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
       emit_diag_event: {
         Args: { payload?: Json }
+        Returns: Json
+      }
+      ensure_realtime_publication: {
+        Args: Record<PropertyKey, never>
         Returns: Json
       }
     }

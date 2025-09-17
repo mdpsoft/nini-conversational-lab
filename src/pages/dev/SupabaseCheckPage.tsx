@@ -8,7 +8,7 @@ import { AlertTriangle, CheckCircle, XCircle, RotateCcw, Database, Wifi, User, Z
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
-import { runRealtimeSmokeTest, createRealtimePublication } from '@/utils/realtimeSmoke';
+import { runRealtimeSmokeTest, ensureRealtimePublication } from '@/utils/realtimeSmoke';
 import { toast } from 'sonner';
 
 interface DiagnosticResult {
@@ -388,17 +388,20 @@ alter table public.events          replica identity full;`;
               <Button 
                 onClick={async () => {
                   try {
-                    const result = await createRealtimePublication(supabase);
+                    const result = await ensureRealtimePublication(supabase);
                     if (result.success) {
-                      toast.success('Broadcast publication created successfully');
+                      const details = result.details;
+                      toast.success(
+                        `Broadcast publication configured! Added ${details?.added_tables || 0} tables, ensured ${details?.ensured_identity || 0} replica identities.`
+                      );
                       setNeedsBroadcastFix(false);
                       // Re-run diagnostics after fix
                       setTimeout(() => runDiagnostics(), 1000);
                     } else {
-                      toast.error(`Failed to create publication: ${result.error}`);
+                      toast.error(`Failed to configure publication: ${result.error}`);
                     }
                   } catch (error) {
-                    toast.error('Failed to create broadcast publication');
+                    toast.error('Failed to configure broadcast publication');
                   }
                 }}
                 variant="outline"

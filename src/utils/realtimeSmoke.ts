@@ -11,51 +11,42 @@ export interface RealtimeSmokeResult {
   publicationExists?: boolean;
 }
 
-export async function checkRealtimePublication(supabase: SupabaseClient): Promise<{ exists: boolean; error?: string }> {
+export async function checkRealtimePublication(supabase: SupabaseClient): Promise<{ exists: boolean; status?: string; message?: string; error?: string }> {
   try {
-    const { data, error } = await supabase.rpc('check_realtime_publication');
+    const { data, error } = await supabase.rpc('check_realtime_publication_status');
     if (error) {
       console.error('Publication check error:', error);
       return { exists: false, error: error.message };
     }
-    return { exists: data?.exists || false };
+    return { 
+      exists: data?.exists || false, 
+      status: data?.status || 'unknown',
+      message: data?.message || 'Unknown status'
+    };
   } catch (error) {
-    // Fallback: try to check via direct query (may not work with RLS)
-    try {
-      const response = await fetch(
-        `https://rxufqnsliggxavpfckft.supabase.co/rest/v1/rpc/check_realtime_publication`,
-        {
-          method: 'POST',
-          headers: {
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4dWZxbnNsaWdneGF2cGZja2Z0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5Njk1MzAsImV4cCI6MjA3MzU0NTUzMH0.Fq2--k7MY5MWy_E9_VEg-0p573TLzvufT8Ux0JD-6Pw',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({})
-        }
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        return { exists: data?.exists || false };
-      }
-    } catch (e) {
-      console.warn('Publication check fallback failed:', e);
-    }
-    
-    return { exists: false, error: 'Unable to check publication status' };
+    return { exists: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
 
-export async function createRealtimePublication(supabase: SupabaseClient): Promise<{ success: boolean; error?: string }> {
+export async function ensureRealtimePublication(supabase: SupabaseClient): Promise<{ success: boolean; error?: string; details?: any }> {
   try {
-    const { data, error } = await supabase.rpc('create_realtime_publication');
+    const { data, error } = await supabase.rpc('ensure_realtime_publication');
     if (error) {
       return { success: false, error: error.message };
     }
-    return { success: true };
+    if (data?.status === 'error') {
+      return { success: false, error: data.error || data.message };
+    }
+    return { success: true, details: data };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
+}
+
+// Legacy function for backwards compatibility - now uses ensureRealtimePublication
+export async function createRealtimePublication(supabase: SupabaseClient): Promise<{ success: boolean; error?: string }> {
+  const result = await ensureRealtimePublication(supabase);
+  return { success: result.success, error: result.error };
 }
 
 export async function runRealtimeSmokeTest(supabase: SupabaseClient): Promise<RealtimeSmokeResult> {
@@ -72,12 +63,13 @@ export async function runRealtimeSmokeTest(supabase: SupabaseClient): Promise<Re
   try {
     // Step 0: Check Publication - verify supabase_realtime publication exists
     const publicationCheck = await checkRealtimePublication(supabase);
-    if (publicationCheck.exists) {
+    if (publicationCheck.exists && publicationCheck.status === 'complete') {
       result.publication = 'PASS';
+      result.publicationExists = true;
     } else {
       result.publication = 'FAIL';
-      result.publicationExists = false;
-      result.error = publicationCheck.error || 'supabase_realtime publication not found';
+      result.publicationExists = publicationCheck.exists;
+      result.error = publicationCheck.error || publicationCheck.message || 'supabase_realtime publication incomplete or missing';
       // Don't return early - continue testing to get full diagnostic picture
     }
 

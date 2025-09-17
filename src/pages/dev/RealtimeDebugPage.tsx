@@ -8,7 +8,7 @@ import { AlertTriangle, CheckCircle, XCircle, RotateCcw, Wifi, Play, Wrench, Ext
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
-import { runRealtimeSmokeTest, createRealtimePublication } from '@/utils/realtimeSmoke';
+import { runRealtimeSmokeTest, ensureRealtimePublication } from '@/utils/realtimeSmoke';
 import { toast } from 'sonner';
 
 interface DiagnosticResult {
@@ -186,25 +186,27 @@ function RealtimeDebugContent() {
   const autoFixBroadcast = async () => {
     setIsFixing(true);
     try {
-      addLog('AUTOFIX', 'Creating supabase_realtime publication...');
-      const result = await createRealtimePublication(supabase);
+      addLog('AUTOFIX', 'Configuring supabase_realtime publication...');
+      const result = await ensureRealtimePublication(supabase);
       
       if (result.success) {
-        addLog('AUTOFIX', 'Publication created successfully!');
-        toast.success('Broadcast publication fixed successfully');
+        const details = result.details;
+        addLog('AUTOFIX', `Publication configured successfully! Added ${details?.added_tables || 0} tables, ensured ${details?.ensured_identity || 0} replica identities.`);
+        toast.success(`Broadcast publication configured! ${details?.message || 'Setup complete.'}`);
         
         // Update the publication result
         updateResult(3, { 
           status: 'PASS', 
-          details: '✓ supabase_realtime publication created'
+          details: '✓ supabase_realtime publication configured'
         });
         
         // Re-run diagnostics after a brief delay
         setTimeout(() => {
+          addLog('AUTOFIX', 'Re-running diagnostics to verify configuration...');
           runDiagnostics();
         }, 1000);
       } else {
-        addLog('AUTOFIX', `Failed to create publication: ${result.error}`, 'error');
+        addLog('AUTOFIX', `Failed to configure publication: ${result.error}`, 'error');
         toast.error(`Auto-fix failed: ${result.error}`);
       }
     } catch (error: any) {
@@ -234,7 +236,9 @@ function RealtimeDebugContent() {
         subscribe: results[1]?.status,
         roundtrip: results[2]?.status,
         publication: results[3]?.status,
-        subscribeMode: results.find(r => r.name === 'Channel Subscribe')?.details?.includes('without_ack') ? 'without_ack' : 'with_ack'
+        subscribeMode: results.find(r => r.name === 'Channel Subscribe')?.details?.includes('without_ack') ? 'without_ack' : 'with_ack',
+        publicationPresent: results[3]?.status === 'PASS',
+        lastFixResult: results[3]?.status === 'PASS' ? 'success' : 'pending'
       }
     }, null, 2);
 
@@ -256,11 +260,12 @@ function RealtimeDebugContent() {
     toast.info('Running realtime auto-fix...');
 
     try {
-      // Use our new RPC function to create the publication
-      const result = await createRealtimePublication(supabase);
+      // Use our comprehensive RPC function to ensure publication is properly configured
+      const result = await ensureRealtimePublication(supabase);
       
       if (result.success) {
-        addLog('AUTOFIX', 'Publication created successfully!');
+        const details = result.details;
+        addLog('AUTOFIX', `Configuration complete: ${details?.message || 'Success'}`);
         toast.success('Auto-fix completed! Please run diagnostics again to verify.');
         
         // Auto-run diagnostics after fix
@@ -268,7 +273,7 @@ function RealtimeDebugContent() {
           runDiagnostics();
         }, 1000);
       } else {
-        throw new Error(result.error || 'Failed to create publication');
+        throw new Error(result.error || 'Failed to configure publication');
       }
 
     } catch (error: any) {
