@@ -210,9 +210,10 @@ alter table public.events          replica identity full;`;
               `${smokeResult.path === 'postgres_changes' && smokeResult.roundtrip === 'PASS' ? '✅' : smokeResult.path === 'broadcast' ? '➖' : '⚠️'} Publication`
             ].join(' / ');
             
-            addResult('Realtime Test', 'PASS', statusDetails);
-            setNeedsBroadcastFix(smokeResult.path === 'broadcast' && smokeResult.roundtrip === 'FAIL');
+            addResult('Realtime Test', 'PASS', `${statusDetails} · Path: ${smokeResult.path}`);
+            setNeedsBroadcastFix(smokeResult.path === 'postgres_changes' && smokeResult.roundtrip === 'PASS');
           } else {
+            const failureReason = smokeResult.details || smokeResult.error || 'Unknown error';
             const statusDetails = [
               `${smokeResult.handshake === 'PASS' ? '✅' : '❌'} Handshake`,
               `${smokeResult.subscribe === 'PASS' ? '✅' : '❌'} Subscribe`,
@@ -220,7 +221,10 @@ alter table public.events          replica identity full;`;
               `${smokeResult.path === 'postgres_changes' && smokeResult.roundtrip === 'PASS' ? '✅' : '⚠️'} Publication`
             ].join(' / ');
             
-            addResult('Realtime Test', 'FAIL', statusDetails, 'Open Realtime Debugger for detailed analysis');
+            addResult('Realtime Test', 'FAIL', 
+              `${statusDetails} · Fallback path: ${smokeResult.path} · Details: ${failureReason}`, 
+              'Open Realtime Debugger for detailed analysis'
+            );
             setNeedsBroadcastFix(true);
           }
         } catch (error) {

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { AlertTriangle, CheckCircle, XCircle, RotateCcw, Wifi, Play, Wrench, ExternalLink, Copy, AlertCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle, RotateCcw, Wifi, Play, Wrench, ExternalLink, Copy, AlertCircle, Zap } from 'lucide-react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
@@ -46,6 +46,7 @@ function RealtimeDebugContent() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [isFixing, setIsFixing] = useState(false);
+  const [isRetryingBroadcast, setIsRetryingBroadcast] = useState(false);
   const [configValidation, setConfigValidation] = useState<any>(null);
   const [latestSmokeResult, setLatestSmokeResult] = useState<any>(null);
   const { user, isAuthenticated } = useSupabaseAuth();
@@ -247,6 +248,8 @@ function RealtimeDebugContent() {
         publication: results[3]?.status,
         path: latestSmokeResult?.path || 'unknown',
         details: latestSmokeResult?.details || 'No details available',
+        error: latestSmokeResult?.error,
+        ok: latestSmokeResult?.ok || false,
         publicationPresent: results[3]?.status === 'PASS',
         lastFixResult: results[3]?.status === 'PASS' ? 'success' : 'pending'
       }
@@ -290,6 +293,89 @@ function RealtimeDebugContent() {
       toast.error(`Auto-fix failed: ${error.message}`);
     } finally {
       setIsFixing(false);
+    }
+  };
+
+  const retryBroadcastOnly = async () => {
+    setIsRetryingBroadcast(true);
+    try {
+      addLog('RETRY', 'Testing broadcast channel only...');
+      
+      const ch = supabase.channel('diagnostic', { 
+        config: { 
+          broadcast: { self: true, ack: true } 
+        } 
+      });
+      
+      const subscribed = await new Promise<boolean>((resolve) => {
+        const timeout = setTimeout(() => resolve(false), 4000);
+        ch.subscribe((status) => { 
+          if (status === 'SUBSCRIBED') { 
+            clearTimeout(timeout); 
+            resolve(true); 
+          }
+        });
+      });
+      
+      if (!subscribed) {
+        addLog('RETRY', 'Broadcast channel subscription failed', 'error');
+        toast.error('Broadcast channel subscription failed');
+        supabase.removeChannel(ch);
+        return;
+      }
+      
+      const testId = `retry_${Date.now()}`;
+      let gotEcho = false;
+      
+      ch.on('broadcast', { event: 'ping' }, (payload: any) => { 
+        if (payload?.testId === testId) {
+          gotEcho = true;
+        }
+      });
+      
+      await new Promise(r => setTimeout(r, 120)); // settle
+      
+      const sendOk = await ch.send({ 
+        type: 'broadcast', 
+        event: 'ping', 
+        payload: { testId, t: Date.now(), who: 'retry' } 
+      });
+      
+      if (sendOk !== 'ok') {
+        // retry without ack
+        await ch.send({ 
+          type: 'broadcast', 
+          event: 'ping', 
+          payload: { testId, t: Date.now(), who: 'retry', retry: true } 
+        }, { ack: false });
+      }
+      
+      const start = Date.now();
+      while (!gotEcho && Date.now() - start < 4000) {
+        await new Promise(r => setTimeout(r, 120));
+      }
+      
+      supabase.removeChannel(ch);
+      
+      if (gotEcho) {
+        addLog('RETRY', 'Broadcast round-trip successful!');
+        toast.success('Broadcast is now working!');
+        
+        // Update the roundtrip result to PASS
+        updateResult(2, { 
+          status: 'PASS', 
+          details: '✓ Broadcast round-trip successful'
+        });
+      } else {
+        addLog('RETRY', 'Broadcast may be blocked by network/proxy; Realtime is OK via Postgres Changes', 'warn');
+        toast.info('Broadcast may be blocked by network/proxy, but Realtime works via Postgres Changes');
+      }
+      
+    } catch (error: any) {
+      addLog('RETRY', `Broadcast retry error: ${error.message}`, 'error');
+      toast.error('Broadcast retry failed');
+    } finally {
+      setIsRetryingBroadcast(false);
     }
   };
 
@@ -505,24 +591,27 @@ function RealtimeDebugContent() {
                 </Button>
               )}
               
-              <Button 
-                onClick={autoFixBroadcast}
-                disabled={isRunning || isFixing}
-                variant="outline"
-                className="flex items-center gap-2"
-              >
-                {isFixing ? (
-                  <>
-                    <RotateCcw className="h-4 w-4 animate-spin" />
-                    Fixing...
-                  </>
-                ) : (
-                  <>
-                    <Wrench className="h-4 w-4" />
-                    Auto-Fix Broadcast
-                  </>
-                )}
-              </Button>
+              {/* Retry Broadcast Only Button */}
+              {latestSmokeResult?.path === 'postgres_changes' && latestSmokeResult?.ok && (
+                <Button 
+                  onClick={retryBroadcastOnly}
+                  disabled={isRunning || isFixing || isRetryingBroadcast}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  {isRetryingBroadcast ? (
+                    <>
+                      <RotateCcw className="h-4 w-4 animate-spin" />
+                      Retrying...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4" />
+                      Retry Broadcast Only
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
             
             <Button asChild variant="ghost" size="sm">
@@ -660,11 +749,44 @@ function RealtimeDebugContent() {
               {results[2]?.status === 'FAIL' && (
                 <div className="p-3 bg-blue-50 rounded border-l-4 border-blue-200">
                   <strong className="text-blue-800">Round-trip Event Failed:</strong>
-                  <ul className="mt-1 text-blue-700 list-disc list-inside">
-                    <li>Broadcast events may not be working</li>
-                    <li>Try testing with <a href="/dev/realtime-check" className="underline">Realtime Check</a></li>
-                    <li>Check browser console for additional errors</li>
-                  </ul>
+                  
+                  {/* Show different guidance based on dual smoke test results */}
+                  {latestSmokeResult?.path === 'postgres_changes' && latestSmokeResult?.ok ? (
+                    <div className="mt-2">
+                      <p className="text-blue-700 mb-2">✅ Postgres Changes working, but broadcast failed</p>
+                      <ul className="mt-1 text-blue-700 list-disc list-inside">
+                        <li>Broadcast may be blocked by network/proxy</li>
+                        <li>Realtime is functional via Postgres Changes</li>
+                        <li>Use "Retry Broadcast Only" button to test again</li>
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="mt-2">
+                      <p className="text-blue-700 mb-2">❌ Both broadcast and postgres_changes failed</p>
+                      <div className="mt-3 p-3 bg-white rounded border">
+                        <strong className="text-blue-800">SQL Fix Checklist:</strong>
+                        <ul className="mt-2 text-blue-700 list-disc list-inside space-y-1">
+                          <li>✓ Replica identity FULL on realtime_diag table</li>
+                          <li>✓ Publication supabase_realtime includes public.realtime_diag</li>
+                          <li>✓ User authenticated (RLS policies)</li>
+                          <li>✓ realtime_diag table exists with correct schema</li>
+                        </ul>
+                        <Button 
+                          onClick={() => {
+                            // Re-run the SQL fix
+                            toast.info('Running SQL fix for realtime diagnostics...');
+                            // The auto-fix function will handle this
+                            autoFixBroadcast();
+                          }}
+                          variant="outline" 
+                          size="sm" 
+                          className="mt-3"
+                        >
+                          Run SQL Fix Again
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
