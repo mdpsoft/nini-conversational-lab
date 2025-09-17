@@ -40,6 +40,7 @@ export default function RealtimeRepairPage() {
   const [sqlContent, setSqlContent] = useState(DEFAULT_SQL);
   const [testResult, setTestResult] = useState<RealtimeDualResult | null>(null);
   const [isRunningTest, setIsRunningTest] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
   const [testLogs, setTestLogs] = useState<string[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -114,9 +115,24 @@ export default function RealtimeRepairPage() {
     window.open(`https://supabase.com/dashboard/project/${projectId}/sql/new`, '_blank');
   };
 
-  const markAppliedAndRerun = () => {
-    addLog('SQL marked as applied, navigating to debug page...');
-    navigate('/dev/realtime-debug?autorun=true');
+  const markAppliedAndRerun = async () => {
+    setIsApplying(true);
+    addLog('SQL marked as applied. Running dual smoke test...');
+    
+    try {
+      // Save audit timestamp and dispatch global refresh event
+      localStorage.setItem('realtimeRepairAppliedAt', new Date().toISOString());
+      window.dispatchEvent?.(new CustomEvent('realtime:status-check'));
+
+      // Execute the Dual Smoke Test on this same page
+      await runDualSmokeTest(); // reuses the function already defined above
+
+      addLog('Dual smoke test finished.');
+    } catch (err) {
+      addLog(`❌ Re-run error: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsApplying(false);
+    }
   };
 
   const getTestBadge = () => {
@@ -196,9 +212,13 @@ export default function RealtimeRepairPage() {
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Abrir SQL Editor
               </Button>
-              <Button size="sm" onClick={markAppliedAndRerun}>
+              <Button 
+                size="sm" 
+                onClick={markAppliedAndRerun}
+                disabled={isRunningTest || isApplying}
+              >
                 <Play className="h-4 w-4 mr-2" />
-                Marcar como aplicado & Re-run Diagnostics
+                {isApplying ? 'Re-running…' : 'Marcar como aplicado & Re-run Diagnostics'}
               </Button>
             </div>
           </CardContent>
@@ -240,7 +260,7 @@ export default function RealtimeRepairPage() {
                 variant="outline" 
                 size="sm" 
                 onClick={runDualSmokeTest}
-                disabled={isRunningTest}
+                disabled={isRunningTest || isApplying}
               >
                 <Wifi className="h-4 w-4 mr-2" />
                 {isRunningTest ? 'Running...' : 'Run Dual Smoke Test'}

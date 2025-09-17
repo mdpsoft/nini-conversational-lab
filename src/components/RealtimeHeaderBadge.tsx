@@ -48,6 +48,13 @@ export function RealtimeHeaderBadge({ onStatusChange }: RealtimeHeaderBadgeProps
     checkRealtimeStatus();
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    // Listen for realtime status refresh events from repair page
+    const handler = () => checkRealtimeStatus();
+    window.addEventListener('realtime:status-check', handler);
+    return () => window.removeEventListener('realtime:status-check', handler);
+  }, []);
+
   const getBadgeVariant = () => {
     switch (status) {
       case 'ok':
