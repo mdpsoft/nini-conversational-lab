@@ -57,13 +57,25 @@ export default function RealtimeRepairPage() {
   const [isRunningTest, setIsRunningTest] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [testLogs, setTestLogs] = useState<string[]>([]);
+  const [isCopied, setIsCopied] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isAuthenticated } = useSupabaseAuth();
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
-    setTestLogs(prev => [...prev.slice(-19), `[${timestamp}] ${message}`]);
+    let coloredMessage = message;
+    
+    // Add colored prefixes based on message content
+    if (message.includes('✅') || message.toLowerCase().includes('pass')) {
+      coloredMessage = `🟢 ${message}`;
+    } else if (message.includes('❌') || message.toLowerCase().includes('fail')) {
+      coloredMessage = `🔴 ${message}`;
+    } else {
+      coloredMessage = `⚪ ${message}`;
+    }
+    
+    setTestLogs(prev => [...prev.slice(-19), `[${timestamp}] ${coloredMessage}`]);
   };
 
   const runDualSmokeTest = async () => {
@@ -112,6 +124,8 @@ export default function RealtimeRepairPage() {
   const copySQL = async () => {
     try {
       await navigator.clipboard.writeText(sqlContent);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
       toast({
         title: "Copied to clipboard",
         description: "SQL script copied successfully"
@@ -262,7 +276,7 @@ export default function RealtimeRepairPage() {
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={copySQL}>
                 <Copy className="h-4 w-4 mr-2" />
-                Copy SQL
+                {isCopied ? 'Copied!' : 'Copy SQL'}
               </Button>
               <Button variant="outline" size="sm" onClick={openSQLEditor}>
                 <ExternalLink className="h-4 w-4 mr-2" />
@@ -325,38 +339,36 @@ export default function RealtimeRepairPage() {
                     </div>
                   )}
                   
-                  {/* Validation Results */}
-                  {testResult.validations && (
-                    <div className="mt-3 p-3 bg-muted rounded-md">
-                      <h4 className="text-sm font-medium mb-2">Pre-flight Validations</h4>
-                      <div className="space-y-1 text-xs">
-                        <div className="flex justify-between">
-                          <span>Table exists:</span>
-                          <span className={testResult.validations.tableExists ? 'text-green-600' : 'text-red-600'}>
-                            {testResult.validations.tableExists ? '✅' : '❌'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Publication configured:</span>
-                          <span className={testResult.validations.publication ? 'text-green-600' : 'text-red-600'}>
-                            {testResult.validations.publication ? '✅' : '❌'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Replica identity:</span>
-                          <span className={testResult.validations.replicaIdentity ? 'text-green-600' : 'text-red-600'}>
-                            {testResult.validations.replicaIdentity ? '✅' : '❌'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>RLS allows access:</span>
-                          <span className={testResult.validations.rlsEnabled ? 'text-green-600' : 'text-red-600'}>
-                            {testResult.validations.rlsEnabled ? '✅' : '❌'}
-                          </span>
-                        </div>
+                  {/* Pre-flight Validations - Always show when testResult exists */}
+                  <div className="mt-3 p-3 bg-muted rounded-md">
+                    <h4 className="text-sm font-medium mb-2">Pre-flight Validations</h4>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span>Table exists:</span>
+                        <span className={testResult.validations?.tableExists ? 'text-green-600' : 'text-red-600'}>
+                          {testResult.validations?.tableExists ? '✅' : '❌'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Publication configured:</span>
+                        <span className={testResult.validations?.publication ? 'text-green-600' : 'text-red-600'}>
+                          {testResult.validations?.publication ? '✅' : '❌'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Replica identity:</span>
+                        <span className={testResult.validations?.replicaIdentity ? 'text-green-600' : 'text-red-600'}>
+                          {testResult.validations?.replicaIdentity ? '✅' : '❌'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>RLS allows access:</span>
+                        <span className={testResult.validations?.rlsEnabled ? 'text-green-600' : 'text-red-600'}>
+                          {testResult.validations?.rlsEnabled ? '✅' : '❌'}
+                        </span>
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
             </div>
@@ -381,13 +393,24 @@ export default function RealtimeRepairPage() {
               </Button>
             </div>
 
+            {/* Debug Link */}
+            <div className="text-xs text-muted-foreground">
+              Need deeper analysis?{' '}
+              <button 
+                onClick={() => navigate('/dev/realtime-debug')}
+                className="text-primary underline hover:no-underline"
+              >
+                Open Realtime Debugger
+              </button>
+            </div>
+
             {/* Log Viewer */}
             {testLogs.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-sm font-medium">Test Logs (últimos 20)</h4>
-                <div className="bg-muted p-3 rounded-md text-xs font-mono max-h-32 overflow-y-auto">
+                <div className="bg-muted p-3 rounded-md text-xs font-mono max-h-48 overflow-y-auto">
                   {testLogs.map((log, index) => (
-                    <div key={index}>{log}</div>
+                    <div key={index} className="leading-relaxed">{log}</div>
                   ))}
                 </div>
               </div>
@@ -466,9 +489,9 @@ export default function RealtimeRepairPage() {
             {testLogs.length > 0 && !(testResult && !testResult.ok && testResult.validations) && (
               <div className="space-y-2">
                 <h4 className="text-sm font-medium">Test Logs (últimos 20)</h4>
-                <div className="bg-muted p-3 rounded-md text-xs font-mono max-h-32 overflow-y-auto">
+                <div className="bg-muted p-3 rounded-md text-xs font-mono max-h-48 overflow-y-auto">
                   {testLogs.map((log, index) => (
-                    <div key={index}>{log}</div>
+                    <div key={index} className="leading-relaxed">{log}</div>
                   ))}
                 </div>
               </div>
