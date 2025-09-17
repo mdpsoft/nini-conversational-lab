@@ -24,12 +24,29 @@ export class SchemaError extends Error {
 // Supabase implementation
 export class SupabaseProfilesRepo implements ProfilesRepo {
   async list(): Promise<UserAIProfile[]> {
-    const { data: profiles, error } = await (supabase as any)
+    // Try ordering by updated_at first, fallback to created_at if needed
+    let query = (supabase as any)
       .from('userai_profiles')
-      .select('*')
-      .order('updated_at', { ascending: false });
+      .select('*');
+    
+    // Try updated_at first
+    let { data: profiles, error } = await query
+      .order('updated_at', { ascending: false, nullsFirst: false });
 
-    if (error) {
+    // If updated_at column doesn't exist, try created_at
+    if (error && error.message.includes('updated_at')) {
+      const { data: fallbackProfiles, error: fallbackError } = await query
+        .order('created_at', { ascending: false, nullsFirst: false });
+      
+      if (fallbackError) {
+        if (fallbackError.message.includes("Could not find the table 'public.userai_profiles'") || 
+            fallbackError.code === 'PGRST106') {
+          throw new SchemaError(`Table 'public.userai_profiles' not found`);
+        }
+        throw new Error(`Failed to fetch profiles: ${fallbackError.message}`);
+      }
+      profiles = fallbackProfiles;
+    } else if (error) {
       if (error.message.includes("Could not find the table 'public.userai_profiles'") || 
           error.code === 'PGRST106') {
         throw new SchemaError(`Table 'public.userai_profiles' not found`);
@@ -146,11 +163,14 @@ export class SupabaseProfilesRepo implements ProfilesRepo {
       personalityPreset: row.personality_preset ?? null,
       presetSource: row.preset_source ?? null,
       strictness: row.strictness || 'balanced',
+      // Audit fields
+      created_at: row.created_at || undefined,
+      updated_at: row.updated_at || undefined,
     };
   }
 
   private mapToSupabase(profile: UserAIProfile, ownerId: string) {
-    return {
+    const mappedProfile: any = {
       id: profile.id,
       owner: ownerId,
       name: profile.name,
@@ -174,8 +194,15 @@ export class SupabaseProfilesRepo implements ProfilesRepo {
       personality_preset: profile.personalityPreset ?? null,
       preset_source: profile.presetSource ?? null,
       strictness: profile.strictness || 'balanced',
-      updated_at: new Date().toISOString(),
     };
+
+    // Only set updated_at if we're updating an existing profile
+    // For new profiles, let the database default handle it
+    if (profile.created_at) {
+      mappedProfile.updated_at = new Date().toISOString();
+    }
+
+    return mappedProfile;
   }
 }
 

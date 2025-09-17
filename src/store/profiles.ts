@@ -34,6 +34,9 @@ export interface UserAIProfile {
   personalityPreset?: string | null;
   presetSource?: 'preset' | 'custom' | null;
   strictness?: 'lenient' | 'balanced' | 'firm' | string;
+  // Audit fields
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface ProfilesStore {
