@@ -84,7 +84,7 @@ alter table public.events          replica identity full;`;
           addResult('Connection Test', 'PASS', 'Supabase client connected successfully');
         }
       } catch (error) {
-        addResult('Connection Test', 'FAIL', `Connection failed: ${error}`, 'Verify SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY');
+        addResult('Connection Test', 'FAIL', `Connection failed: ${error}`, 'Verify Supabase configuration');
       }
 
       // 2. Schema Validation
@@ -95,30 +95,39 @@ alter table public.events          replica identity full;`;
 
       for (const tableInfo of REQUIRED_TABLES) {
         try {
-          // Use fetch directly to avoid TypeScript issues with empty schema
-          const response = await fetch(
-            `https://rxufqnsliggxavpfckft.supabase.co/rest/v1/${tableInfo.table}?select=*&limit=1`,
-            {
-              headers: {
-                'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4dWZxbnNsaWdneGF2cGZja2Z0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5Njk1MzAsImV4cCI6MjA3MzU0NTUzMH0.Fq2--k7MY5MWy_E9_VEg-0p573TLzvufT8Ux0JD-6Pw',
-                'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4dWZxbnNsaWdneGF2cGZja2Z0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5Njk1MzAsImV4cCI6MjA3MzU0NTUzMH0.Fq2--k7MY5MWy_E9_VEg-0p573TLzvufT8Ux0JD-6Pw'}`,
-                'Content-Type': 'application/json',
-                'Accept-Profile': 'public'
-              }
-            }
-          );
+          // Use supabase client with proper type checking
+          let data, error;
+          
+          switch (tableInfo.table) {
+            case 'userai_profiles':
+              ({ data, error } = await supabase.from('userai_profiles').select('*').limit(1));
+              break;
+            case 'scenarios':
+              ({ data, error } = await supabase.from('scenarios').select('*').limit(1));
+              break;
+            case 'runs':
+              ({ data, error } = await supabase.from('runs').select('*').limit(1));
+              break;
+            case 'turns':
+              ({ data, error } = await supabase.from('turns').select('*').limit(1));
+              break;
+            case 'events':
+              ({ data, error } = await supabase.from('events').select('*').limit(1));
+              break;
+            default:
+              throw new Error(`Unknown table: ${tableInfo.table}`);
+          }
 
-          if (response.status === 404) {
-            const errorData = await response.json();
-            if (errorData.code === 'PGRST205') {
+          if (error) {
+            if (error.code === 'relation_does_not_exist' || error.code === '42P01') {
               // Table not found
               missingTablesList.push(tableInfo.table);
+            } else if (error.code === 'insufficient_privilege' || error.code === '42501') {
+              // Permission issue - likely RLS
+              addResult(`Table: ${tableInfo.table}`, 'WARNING', `Access restricted: ${error.message}`, 'Check RLS policies and permissions');
             } else {
-              addResult(`Table: ${tableInfo.table}`, 'FAIL', `Not found: ${errorData.message}`, 'Create the missing table');
+              addResult(`Table: ${tableInfo.table}`, 'FAIL', `Query error: ${error.message}`, 'Check table exists and is accessible');
             }
-          } else if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-            addResult(`Table: ${tableInfo.table}`, 'WARNING', `Access error: ${errorData.message}`, 'Check RLS policies and permissions');
           } else {
             foundTables.push(tableInfo.table);
             addResult(`Table: ${tableInfo.table}`, 'PASS', `✓ ${tableInfo.description}`);
@@ -558,7 +567,7 @@ alter table public.events          replica identity full;`;
                 
                 <Button asChild variant="outline" size="sm">
                   <a 
-                    href="https://supabase.com/dashboard/project/rxufqnsliggxavpfckft/sql/new" 
+                    href={`https://supabase.com/dashboard/project/${(supabase as any)?.supabaseUrl?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || 'unknown'}/sql/new`}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -588,7 +597,7 @@ alter table public.events          replica identity full;`;
             <div>
               <strong>Supabase URL:</strong>
               <code className="ml-2 bg-muted px-1 rounded">
-                https://rxufqnsliggxavpfckft.supabase.co
+                {(supabase as any)?.supabaseUrl ? '(configured)' : '(not configured)'}
               </code>
             </div>
             <div>

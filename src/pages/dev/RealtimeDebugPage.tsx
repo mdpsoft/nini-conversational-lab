@@ -77,15 +77,15 @@ function RealtimeDebugContent() {
   };
 
   const validateConfiguration = () => {
-    const supabaseUrl = 'https://rxufqnsliggxavpfckft.supabase.co';
-    const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4dWZxbnNsaWdneGF2cGZja2Z0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5Njk1MzAsImV4cCI6MjA3MzU0NTUzMH0.Fq2--k7MY5MWy_E9_VEg-0p573TLzvufT8Ux0JD-6Pw';
+    // Get configuration from supabase client without exposing secrets
+    const supabaseUrl = (supabase as any)?.supabaseUrl ?? '(config hidden)';
     
     // Extract project ref from URL
     const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || 'unknown';
-    const expectedRealtimeUrl = `wss://${projectRef}.supabase.co/realtime/v1`;
+    const expectedRealtimeUrl = projectRef !== 'unknown' ? `wss://${projectRef}.supabase.co/realtime/v1` : '(hidden)';
     
-    // Mask the anon key
-    const maskedKey = anonKey.slice(0, 6) + '****' + anonKey.slice(-4);
+    // Never expose keys in UI - always mask
+    const maskedKey = '(hidden)';
     
     const validation = {
       supabaseUrl,
@@ -94,7 +94,7 @@ function RealtimeDebugContent() {
       realtimeUrl: expectedRealtimeUrl,
       authUser: user?.email || 'Not authenticated',
       urlValid: supabaseUrl.includes('.supabase.co'),
-      keyPresent: anonKey.length > 0
+      keyPresent: true // We assume it's present since client is configured
     };
     
     setConfigValidation(validation);

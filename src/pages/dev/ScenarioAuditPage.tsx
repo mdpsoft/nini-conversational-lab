@@ -88,19 +88,26 @@ export default function ScenarioAuditPage() {
       let supabaseCount = 0;
       
       try {
-        // Try to fetch scenarios from supabase (if table exists)
-        // Note: This will fail if scenarios table doesn't exist, which is expected
-        const response = await fetch(`https://rxufqnsliggxavpfckft.supabase.co/rest/v1/scenarios?limit=50`, {
-          headers: {
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4dWZxbnNsaWdneGF2cGZja2Z0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5Njk1MzAsImV4cCI6MjA3MzU0NTUzMH0.Fq2--k7MY5MWy_E9_VEg-0p573TLzvufT8Ux0JD-6Pw',
-            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4dWZxbnNsaWdneGF2cGZja2Z0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5Njk1MzAsImV4cCI6MjA3MzU0NTUzMH0.Fq2--k7MY5MWy_E9_VEg-0p573TLzvufT8Ux0JD-6Pw'
-          }
-        });
+        // Use supabase client instead of direct fetch with hardcoded keys
+        const { data: scenariosData, error } = await supabase
+          .from('scenarios')
+          .select('*')
+          .limit(50);
         
-        if (response.ok) {
-          const data = await response.json();
-          supabaseScenarios = data as Scenario[];
-          supabaseCount = data.length;
+        if (error) {
+          console.warn('Failed to fetch Supabase scenarios:', error);
+          supabaseScenarios = [];
+          supabaseCount = 0;
+        } else {
+          // Convert Supabase data to local Scenario format
+          supabaseScenarios = (scenariosData || []).map(s => ({
+            id: s.id,
+            name: s.name,
+            description: s.description || '',
+            relationshipType: 'just_friend' as const, // Default value for missing fields
+            language: 'en' // Default value for missing fields
+          }));
+          supabaseCount = (scenariosData || []).length;
         }
       } catch (error) {
         // Supabase scenarios table doesn't exist or not accessible

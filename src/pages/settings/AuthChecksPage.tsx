@@ -79,7 +79,7 @@ export default function AuthChecksPage() {
     updateCheckStatus("smtp", "running");
     try {
       // We can't directly check SMTP config via client, so we infer from project setup
-      const projectId = "rxufqnsliggxavpfckft"; // From client config
+      const projectId = (supabase as any)?.supabaseUrl?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || 'unknown';
       
       updateCheckStatus("smtp", "warning", 
         "Using Supabase default SMTP", 
@@ -169,7 +169,7 @@ export default function AuthChecksPage() {
   const copyReport = () => {
     const report = {
       timestamp: new Date().toISOString(),
-      projectId: "rxufqnsliggxavpfckft",
+      projectId: (supabase as any)?.supabaseUrl?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || 'unknown',
       user: user ? { id: user.id, email: user.email } : null,
       checks: checks.reduce((acc, check) => {
         acc[check.id] = {
@@ -207,8 +207,8 @@ export default function AuthChecksPage() {
     return <Badge variant={variants[status]}>{status}</Badge>;
   };
 
-  const projectRef = "rxufqnsliggxavpfckft";
-  const supabaseAuthUrl = `https://supabase.com/dashboard/project/${projectRef}/auth/users`;
+  const projectRef = (supabase as any)?.supabaseUrl?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || 'unknown';
+  const supabaseAuthUrl = projectRef !== 'unknown' ? `https://supabase.com/dashboard/project/${projectRef}/auth/users` : '#';
 
   return (
     <div className="container mx-auto p-6">

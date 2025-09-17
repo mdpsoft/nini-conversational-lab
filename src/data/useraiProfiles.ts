@@ -248,8 +248,8 @@ export function resolveProfilesRepo(): { repo: ProfilesRepo; source: DataSource 
 
   // Temporary sync version for immediate use
   try {
-    // Simple heuristic: if there's a session in sessionStorage, assume Supabase
-    const hasSession = localStorage.getItem('sb-rxufqnsliggxavpfckft-auth-token');
+    // Simple heuristic: if there's a session in storage, assume Supabase is configured
+    const hasSession = localStorage.getItem(`sb-${(supabase as any)?.supabaseUrl?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || 'unknown'}-auth-token`);
     if (hasSession) {
       return { repo: new SupabaseProfilesRepo(), source: 'Supabase' as DataSource };
     }

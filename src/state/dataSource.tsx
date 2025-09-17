@@ -53,11 +53,14 @@ async function detectDefaultDataSource(): Promise<DataSourceState> {
     }
     
     // Even if not authenticated, if Supabase is configured, default to it
-    const SUPABASE_URL = "https://rxufqnsliggxavpfckft.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4dWZxbnNsaWdneGF2cGZja2Z0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5Njk1MzAsImV4cCI6MjA3MzU0NTUzMH0.Fq2--k7MY5MWy_E9_VEg-0p573TLzvufT8Ux0JD-6Pw";
-    
-    if (SUPABASE_URL && SUPABASE_KEY) {
-      return { source: 'supabase', reason: 'Supabase configured (not authenticated)' };
+    // Use client configuration without exposing keys
+    try {
+      const supabaseUrl = (supabase as any)?.supabaseUrl;
+      if (supabaseUrl && supabaseUrl.includes('.supabase.co')) {
+        return { source: 'supabase', reason: 'Supabase configured (not authenticated)' };
+      }
+    } catch (error) {
+      console.warn('Failed to check Supabase configuration:', error);
     }
   } catch (error) {
     console.warn('Failed to check Supabase auth:', error);
