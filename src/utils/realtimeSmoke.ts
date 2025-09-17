@@ -103,7 +103,7 @@ export async function runRealtimeSmokeTest(supabase: SupabaseClient): Promise<Re
     // First try with ack enabled
     testChannel = supabase.channel('diag_test', { 
       config: { 
-        broadcast: { ack: true } 
+        broadcast: { ack: true, self: true } 
       } 
     });
 
@@ -125,7 +125,7 @@ export async function runRealtimeSmokeTest(supabase: SupabaseClient): Promise<Re
       
       testChannel = supabase.channel('diag_test_fallback', { 
         config: { 
-          broadcast: { ack: false } 
+          broadcast: { ack: false, self: true } 
         } 
       });
 
@@ -151,11 +151,16 @@ export async function runRealtimeSmokeTest(supabase: SupabaseClient): Promise<Re
 
     // Step 3: Round-trip - test broadcast send/receive
     const testId = `smoke_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`[ROUNDTRIP] Starting round-trip test with testId: ${testId}`);
     
     const roundtripPromise = new Promise<boolean>((resolve) => {
-      const timeout = setTimeout(() => resolve(false), 5000);
+      const timeout = setTimeout(() => {
+        console.log('[ROUNDTRIP] No echo received after 10s');
+        resolve(false);
+      }, 10000);
       
       testChannel.on('broadcast', { event: 'ping' }, (payload: any) => {
+        console.log(`[ROUNDTRIP] Broadcast echo received: testId=${payload.testId}, who=${payload.who}`);
         if (payload.testId === testId && payload.who === 'health') {
           clearTimeout(timeout);
           resolve(true);
@@ -164,19 +169,29 @@ export async function runRealtimeSmokeTest(supabase: SupabaseClient): Promise<Re
 
       // Send the broadcast event after setting up the listener
       setTimeout(() => {
-        testChannel.send({
+        console.log('[ROUNDTRIP] Broadcast sent → waiting for echo');
+        const sendResult = testChannel.send({
           type: 'broadcast',
           event: 'ping',
           payload: { testId, who: 'health', timestamp: Date.now() }
         });
+        
+        console.log(`[ROUNDTRIP] Send result: ${sendResult}`);
+        if (sendResult !== 'ok') {
+          console.log(`[ROUNDTRIP] Send failed with result: ${sendResult}`);
+          clearTimeout(timeout);
+          resolve(false);
+        }
       }, 100);
     });
 
     const roundtripSuccess = await roundtripPromise;
     if (roundtripSuccess) {
       result.roundtrip = 'PASS';
+      console.log('[ROUNDTRIP] Test passed');
     } else {
-      result.error = 'Broadcast round-trip failed - event not received within 5s';
+      result.error = 'Broadcast round-trip failed - event not received within 10s or send failed';
+      console.log('[ROUNDTRIP] Test failed');
     }
 
     // Overall success: all tests pass (publication check is a warning, not a failure)
