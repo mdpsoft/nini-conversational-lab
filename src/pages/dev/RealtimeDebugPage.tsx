@@ -46,6 +46,7 @@ function RealtimeDebugContent() {
   const [isRunning, setIsRunning] = useState(false);
   const [isFixing, setIsFixing] = useState(false);
   const [configValidation, setConfigValidation] = useState<any>(null);
+  const [latestSmokeResult, setLatestSmokeResult] = useState<any>(null);
   const { user, isAuthenticated } = useSupabaseAuth();
   const channelRef = useRef<any>(null);
 
@@ -125,6 +126,7 @@ function RealtimeDebugContent() {
       
       // Run the shared smoke test
       const smokeResult = await runRealtimeSmokeTest(supabase);
+      setLatestSmokeResult(smokeResult);
       
       // Update results based on smoke test
       updateResult(0, { 
@@ -154,7 +156,9 @@ function RealtimeDebugContent() {
       // Add detailed logs
       addLog('HANDSHAKE', smokeResult.handshake === 'PASS' ? 'WebSocket connection successful' : 'WebSocket connection failed');
       addLog('SUBSCRIBE', smokeResult.subscribe === 'PASS' ? `Broadcast channel subscription successful (${smokeResult.subscribeMode || 'with_ack'})` : 'Broadcast channel subscription failed');
-      addLog('ROUNDTRIP', smokeResult.roundtrip === 'PASS' ? 'Broadcast round-trip successful' : 'Broadcast round-trip failed');
+      addLog('ROUNDTRIP', smokeResult.roundtrip === 'PASS' ? 
+        `Broadcast round-trip successful (mode: ${smokeResult.finalMode || 'with_ack'}, sendResult: ${smokeResult.sendResult || 'ok'})` : 
+        `Broadcast round-trip failed (mode: ${smokeResult.finalMode || 'with_ack'}, sendResult: ${smokeResult.sendResult || 'unknown'})`);
       addLog('PUBLICATION', smokeResult.publication === 'PASS' ? 'supabase_realtime publication found' : 'supabase_realtime publication missing');
       
       if (smokeResult.ok && smokeResult.publication === 'PASS') {
@@ -236,7 +240,9 @@ function RealtimeDebugContent() {
         subscribe: results[1]?.status,
         roundtrip: results[2]?.status,
         publication: results[3]?.status,
-        subscribeMode: results.find(r => r.name === 'Channel Subscribe')?.details?.includes('without_ack') ? 'without_ack' : 'with_ack',
+        subscribeMode: latestSmokeResult?.subscribeMode || 'with_ack',
+        finalMode: latestSmokeResult?.finalMode || 'with_ack',
+        sendResult: latestSmokeResult?.sendResult || 'unknown',
         publicationPresent: results[3]?.status === 'PASS',
         lastFixResult: results[3]?.status === 'PASS' ? 'success' : 'pending'
       }
