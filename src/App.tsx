@@ -31,6 +31,7 @@ import ExpressCheckPage from "./pages/dev/ExpressCheckPage";
 import SupabaseCheckPage from "./pages/dev/SupabaseCheckPage";
 import RealtimeCheckPage from "./pages/dev/RealtimeCheckPage";
 import RealtimeDebugPage from "./pages/dev/RealtimeDebugPage";
+import RealtimeRepairPage from "./pages/dev/RealtimeRepairPage";
 import { useSettingsStore } from "./store/settings";
 import { useScenariosStore } from "./store/scenarios";
 import { useDevAutoLogin } from "./hooks/useDevAutoLogin";
@@ -77,6 +78,9 @@ const App = () => {
               )}
               {isDevMode && (
                 <Route path="dev/realtime-debug" element={<RealtimeDebugPage />} />
+              )}
+              {isDevMode && (
+                <Route path="dev/realtime-repair" element={<RealtimeRepairPage />} />
               )}
               {isDevMode && (
                 <Route path="dev/express-check" element={<ExpressCheckPage />} />

@@ -221,14 +221,22 @@ alter table public.events          replica identity full;`;
               `${smokeResult.path === 'postgres_changes' && smokeResult.roundtrip === 'PASS' ? '✅' : '⚠️'} Publication`
             ].join(' / ');
             
+            const isSubscriptionTimeout = failureReason.includes('Channel subscription timeout') || failureReason.includes('subscription timeout');
+            const isRoundtripFailed = failureReason.includes('Round-trip') || failureReason.includes('roundtrip');
+            
+            let actionText = 'Open Realtime Debugger for detailed analysis';
+            if (isSubscriptionTimeout || isRoundtripFailed) {
+              actionText = 'Apply Realtime Repair SQL';
+            }
+            
             addResult('Realtime Test', 'FAIL', 
               `${statusDetails} · Fallback path: ${smokeResult.path} · Details: ${failureReason}`, 
-              'Open Realtime Debugger for detailed analysis'
+              actionText
             );
             setNeedsBroadcastFix(true);
           }
         } catch (error) {
-          addResult('Realtime Test', 'FAIL', `Realtime test error: ${error}`, 'Open Realtime Debugger for detailed analysis');
+          addResult('Realtime Test', 'FAIL', `Realtime test error: ${error}`, 'Apply Realtime Repair SQL');
         }
       }
 
@@ -484,6 +492,12 @@ alter table public.events          replica identity full;`;
                     Realtime Debug
                   </a>
                 </Button>
+                <Button asChild variant="ghost" size="sm" className="justify-start">
+                  <a href="/dev/realtime-repair" target="_blank">
+                    <ExternalLink className="h-3 w-3 mr-2" />
+                    Realtime Repair
+                  </a>
+                </Button>
               </div>
             </div>
           </CardContent>
@@ -525,11 +539,39 @@ alter table public.events          replica identity full;`;
                     {result.details}
                   </p>
                   
-                  {result.suggestion && (
-                    <div className="mt-2 ml-6 p-2 bg-blue-50 rounded text-xs text-blue-800">
-                      <strong>Suggestion:</strong> {result.suggestion}
-                    </div>
-                  )}
+                   {result.suggestion && (
+                     <div className="mt-2 ml-6 flex items-start gap-3">
+                       <div className="flex-1 p-2 bg-blue-50 rounded text-xs text-blue-800">
+                         <strong>Suggestion:</strong> {result.suggestion}
+                       </div>
+                       {result.suggestion.includes('Apply Realtime Repair SQL') && (
+                         <Button 
+                           asChild 
+                           size="sm" 
+                           variant="outline"
+                           className="h-8 text-xs"
+                         >
+                           <a href="/dev/realtime-repair">
+                             <ExternalLink className="h-3 w-3 mr-1" />
+                             Repair
+                           </a>
+                         </Button>
+                       )}
+                       {result.suggestion.includes('Open Realtime Debugger') && (
+                         <Button 
+                           asChild 
+                           size="sm" 
+                           variant="outline"
+                           className="h-8 text-xs"
+                         >
+                           <a href="/dev/realtime-debug">
+                             <ExternalLink className="h-3 w-3 mr-1" />
+                             Debug
+                           </a>
+                         </Button>
+                       )}
+                     </div>
+                   )}
                 </div>
               ))}
               

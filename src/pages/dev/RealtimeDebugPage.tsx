@@ -11,6 +11,7 @@ import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { runRealtimeDualSmoke } from '@/utils/realtimeDualSmoke';
 import { ensureRealtimePublication } from '@/utils/ensurePublication';
 import { toast } from 'sonner';
+import { useSearchParams } from 'react-router-dom';
 
 interface DiagnosticResult {
   name: string;
@@ -37,6 +38,8 @@ interface DiagnosticInfo {
 }
 
 function RealtimeDebugContent() {
+  const [searchParams] = useSearchParams();
+  const autorun = searchParams.get('autorun') === 'true';
   const [results, setResults] = useState<DiagnosticResult[]>([
     { name: 'WebSocket Handshake', status: 'IDLE', details: 'Waiting to start...' },
     { name: 'Channel Subscribe', status: 'IDLE', details: 'Waiting to start...' },
@@ -383,13 +386,20 @@ function RealtimeDebugContent() {
     // Validate configuration on mount
     validateConfiguration();
     
+    // Auto-run diagnostics if requested via URL param
+    if (autorun && isAuthenticated) {
+      setTimeout(() => {
+        runDiagnostics();
+      }, 1000);
+    }
+    
     return () => {
       // Cleanup channel on unmount
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
       }
     };
-  }, [user]);
+  }, [user, autorun, isAuthenticated]);
 
   const getStatusIcon = (status: DiagnosticResult['status']) => {
     switch (status) {
@@ -610,6 +620,27 @@ function RealtimeDebugContent() {
                       Retry Broadcast Only
                     </>
                   )}
+                </Button>
+              )}
+              
+              {/* Realtime Repair Button - show when there are subscription timeouts or roundtrip failures */}
+              {(failedTests > 0 && (
+                results[1]?.error?.includes('Channel subscription timeout') ||
+                results[1]?.error?.includes('subscription timeout') ||
+                results[2]?.error?.includes('Round-trip') ||
+                results[2]?.error?.includes('roundtrip') ||
+                latestSmokeResult?.error?.includes('Channel subscription timeout') ||
+                latestSmokeResult?.error?.includes('Round-trip')
+              )) && (
+                <Button 
+                  asChild
+                  variant="outline" 
+                  className="flex items-center gap-2"
+                >
+                  <a href="/dev/realtime-repair">
+                    <Wrench className="h-4 w-4" />
+                    Apply Realtime Repair SQL
+                  </a>
                 </Button>
               )}
             </div>
