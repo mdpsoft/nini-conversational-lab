@@ -66,13 +66,13 @@ export default function RealtimeRepairPage() {
     const timestamp = new Date().toLocaleTimeString();
     let coloredMessage = message;
     
-    // Add colored prefixes based on message content
+    // Add prefixes based on message content
     if (message.includes('✅') || message.toLowerCase().includes('pass')) {
-      coloredMessage = `🟢 ${message}`;
-    } else if (message.includes('❌') || message.toLowerCase().includes('fail')) {
-      coloredMessage = `🔴 ${message}`;
+      coloredMessage = `✅ ${message}`;
+    } else if (message.includes('❌') || message.toLowerCase().includes('fail') || message.toLowerCase().includes('error')) {
+      coloredMessage = `❌ ${message}`;
     } else {
-      coloredMessage = `⚪ ${message}`;
+      coloredMessage = `ℹ️ ${message}`;
     }
     
     setTestLogs(prev => [...prev.slice(-19), `[${timestamp}] ${coloredMessage}`]);
@@ -408,7 +408,14 @@ export default function RealtimeRepairPage() {
             {testLogs.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-sm font-medium">Test Logs (últimos 20)</h4>
-                <div className="bg-muted p-3 rounded-md text-xs font-mono max-h-48 overflow-y-auto">
+                <div 
+                  className="bg-muted p-3 rounded-md text-xs font-mono max-h-48 overflow-y-auto"
+                  ref={(el) => {
+                    if (el) {
+                      el.scrollTop = el.scrollHeight;
+                    }
+                  }}
+                >
                   {testLogs.map((log, index) => (
                     <div key={index} className="leading-relaxed">{log}</div>
                   ))}
@@ -489,7 +496,14 @@ export default function RealtimeRepairPage() {
             {testLogs.length > 0 && !(testResult && !testResult.ok && testResult.validations) && (
               <div className="space-y-2">
                 <h4 className="text-sm font-medium">Test Logs (últimos 20)</h4>
-                <div className="bg-muted p-3 rounded-md text-xs font-mono max-h-48 overflow-y-auto">
+                <div 
+                  className="bg-muted p-3 rounded-md text-xs font-mono max-h-48 overflow-y-auto"
+                  ref={(el) => {
+                    if (el) {
+                      el.scrollTop = el.scrollHeight;
+                    }
+                  }}
+                >
                   {testLogs.map((log, index) => (
                     <div key={index} className="leading-relaxed">{log}</div>
                   ))}
