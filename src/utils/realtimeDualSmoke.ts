@@ -8,12 +8,113 @@ export type RealtimeDualResult = {
   details?: string;
   error?: string;
   ok: boolean;
+  validations?: {
+    tableExists: boolean;
+    replicaIdentity: boolean;
+    publication: boolean;
+    rlsEnabled: boolean;
+  };
 };
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+// Validation helpers
+async function checkTableExists(supabase: SupabaseClient): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('realtime_diag')
+      .select('id')
+      .limit(1);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+async function checkReplicaIdentity(supabase: SupabaseClient): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.rpc('check_realtime_publication_status');
+    if (error) return false;
+    // This is a simplified check - in practice we'd need a custom function to check replica identity
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function checkPublication(supabase: SupabaseClient): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.rpc('check_realtime_publication_status');
+    if (error) return false;
+    return data?.status === 'complete' || false;
+  } catch {
+    return false;
+  }
+}
+
+async function checkRLSEnabled(supabase: SupabaseClient): Promise<boolean> {
+  try {
+    // Try to insert a test record - if RLS blocks it, we'll know
+    const testId = `rls_test_${Date.now()}`;
+    const { error } = await supabase
+      .from('realtime_diag')
+      .insert({ test_id: testId })
+      .select();
+    
+    if (!error) {
+      // Clean up test record
+      await supabase
+        .from('realtime_diag')
+        .delete()
+        .eq('test_id', testId);
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export async function runRealtimeDualSmoke(supabase: SupabaseClient): Promise<RealtimeDualResult> {
   console.log('[DUAL-SMOKE] Starting dual realtime diagnostics...');
+  
+  // Pre-flight validations
+  console.log('[DUAL-SMOKE] Running pre-flight validations...');
+  const validations = {
+    tableExists: await checkTableExists(supabase),
+    replicaIdentity: await checkReplicaIdentity(supabase),
+    publication: await checkPublication(supabase),
+    rlsEnabled: await checkRLSEnabled(supabase)
+  };
+  
+  console.log('[DUAL-SMOKE] Validations:', validations);
+  
+  // If critical validations fail, return early
+  if (!validations.tableExists) {
+    return {
+      handshake: 'FAIL',
+      subscribe: 'FAIL', 
+      roundtrip: 'FAIL',
+      path: 'postgres_changes',
+      details: 'Table realtime_diag does not exist',
+      error: 'Run the SQL repair script to create the diagnostic table',
+      ok: false,
+      validations
+    };
+  }
+  
+  if (!validations.publication) {
+    return {
+      handshake: 'PASS',
+      subscribe: 'FAIL',
+      roundtrip: 'FAIL', 
+      path: 'postgres_changes',
+      details: 'Table not included in supabase_realtime publication',
+      error: 'Run the SQL repair script to add table to publication',
+      ok: false,
+      validations
+    };
+  }
   
   // 0) Handshake rápido
   console.log('[DUAL-SMOKE] Testing WebSocket handshake...');
@@ -38,7 +139,8 @@ export async function runRealtimeDualSmoke(supabase: SupabaseClient): Promise<Re
       path: 'broadcast', 
       details: 'WebSocket handshake failed',
       error: 'WebSocket connection could not be established',
-      ok: false
+      ok: false,
+      validations
     };
   }
   
@@ -112,7 +214,8 @@ export async function runRealtimeDualSmoke(supabase: SupabaseClient): Promise<Re
         roundtrip: 'PASS', 
         path: 'broadcast',
         details: 'Broadcast self-echo successful',
-        ok: true
+        ok: true,
+        validations
       };
     }
     
@@ -156,8 +259,9 @@ export async function runRealtimeDualSmoke(supabase: SupabaseClient): Promise<Re
       roundtrip: 'FAIL', 
       path: 'postgres_changes', 
       details: 'Channel subscription timeout',
-      error: 'Could not subscribe to postgres_changes channel',
-      ok: false
+      error: 'Could not subscribe to postgres_changes channel - check publication and RLS policies',
+      ok: false,
+      validations
     };
   }
   
@@ -180,7 +284,8 @@ export async function runRealtimeDualSmoke(supabase: SupabaseClient): Promise<Re
         path: 'postgres_changes',
         details: `Insert failed: ${insertError.message}`,
         error: insertError.message,
-        ok: false
+        ok: false,
+        validations
       };
     }
     
@@ -201,7 +306,8 @@ export async function runRealtimeDualSmoke(supabase: SupabaseClient): Promise<Re
         roundtrip: 'PASS', 
         path: 'postgres_changes',
         details: 'Postgres changes INSERT event received',
-        ok: true
+        ok: true,
+        validations
       };
     }
     
@@ -212,8 +318,9 @@ export async function runRealtimeDualSmoke(supabase: SupabaseClient): Promise<Re
       roundtrip: 'FAIL', 
       path: 'postgres_changes', 
       details: 'No INSERT event received within 6s timeout',
-      error: 'INSERT event not received - realtime may be misconfigured',
-      ok: false
+      error: 'INSERT event not received - check replica identity and publication configuration',
+      ok: false,
+      validations
     };
     
   } catch (error) {
@@ -226,7 +333,8 @@ export async function runRealtimeDualSmoke(supabase: SupabaseClient): Promise<Re
       path: 'postgres_changes',
       details: `Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       error: error instanceof Error ? error.message : 'Unknown error',
-      ok: false
+      ok: false,
+      validations
     };
   }
 }

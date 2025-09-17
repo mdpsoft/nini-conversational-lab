@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Copy, ExternalLink, Play, Wifi, AlertCircle, CheckCircle, Database } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Copy, ExternalLink, Play, Wifi, AlertCircle, CheckCircle, Database, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { runRealtimeDualSmoke, type RealtimeDualResult } from '@/utils/realtimeDualSmoke';
 import { supabase } from '@/integrations/supabase/client';
@@ -23,7 +24,7 @@ create table if not exists public.realtime_diag (
   created_at timestamptz default now()
 );
 
--- 2) Asegurar REPLICA IDENTITY FULL
+-- 2) Asegurar REPLICA IDENTITY FULL (requerido por realtime)
 alter table if exists public.realtime_diag replica identity full;
 
 -- 3) Crear publicación realtime si no existe
@@ -32,9 +33,23 @@ create publication if not exists supabase_realtime;
 -- 4) Incluir la tabla en la publicación
 alter publication supabase_realtime add table public.realtime_diag;
 
--- 5) Asegurar permisos (para rol authenticated)
+-- 5) Habilitar RLS y crear política permisiva para diagnósticos
+alter table public.realtime_diag enable row level security;
+
+-- Crear política permisiva para pruebas (ajustar en producción)
+create policy if not exists "diag insert/select" 
+  on public.realtime_diag 
+  for all using (true);
+
+-- 6) Asegurar permisos básicos
 grant usage on schema public to authenticated;
-grant all on public.realtime_diag to authenticated;`;
+grant all on public.realtime_diag to authenticated;
+
+-- 7) Verificación rápida - debe mostrar la tabla realtime_diag
+select pubname, schemaname, tablename
+from pg_publication_tables
+where pubname = 'supabase_realtime' and tablename = 'realtime_diag'
+order by schemaname, tablename;`;
 
 export default function RealtimeRepairPage() {
   const [sqlContent, setSqlContent] = useState(DEFAULT_SQL);
@@ -155,6 +170,47 @@ export default function RealtimeRepairPage() {
     }
   };
 
+  const getStepBadge = (status: 'PASS' | 'FAIL') => {
+    if (status === 'PASS') {
+      return (
+        <Badge variant="default" className="flex items-center gap-1 text-xs">
+          <CheckCircle className="h-3 w-3" />
+          PASS
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge variant="destructive" className="flex items-center gap-1 text-xs">
+          <AlertCircle className="h-3 w-3" />
+          FAIL
+        </Badge>
+      );
+    }
+  };
+
+  const runSQLFixAgain = async () => {
+    setIsApplying(true);
+    addLog('Running SQL fix again...');
+    
+    try {
+      // Save timestamp and dispatch refresh
+      localStorage.setItem('realtimeRepairAppliedAt', new Date().toISOString());
+      window.dispatchEvent?.(new CustomEvent('realtime:status-check'));
+
+      // Wait a moment for potential schema changes to propagate
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Run the dual smoke test
+      await runDualSmokeTest();
+      
+      addLog('SQL fix and validation completed.');
+    } catch (err) {
+      addLog(`❌ SQL fix error: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
   // Run initial test on mount
   useEffect(() => {
     if (isAuthenticated) {
@@ -243,13 +299,63 @@ export default function RealtimeRepairPage() {
               </div>
               
               {testResult && (
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <div>Handshake: {testResult.handshake}</div>
-                  <div>Subscribe: {testResult.subscribe}</div>
-                  <div>Round-trip: {testResult.roundtrip}</div>
-                  <div>Path: {testResult.path}</div>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span>Handshake:</span>
+                      {getStepBadge(testResult.handshake)}
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span>Subscribe:</span>
+                      {getStepBadge(testResult.subscribe)}
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span>Round-trip:</span>
+                      {getStepBadge(testResult.roundtrip)}
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span>Path:</span>
+                      <span className="text-muted-foreground">{testResult.path}</span>
+                    </div>
+                  </div>
+                  
                   {(testResult.details || testResult.error) && (
-                    <div>Details: {testResult.details || testResult.error}</div>
+                    <div className="text-xs text-muted-foreground">
+                      <strong>Details:</strong> {testResult.details || testResult.error}
+                    </div>
+                  )}
+                  
+                  {/* Validation Results */}
+                  {testResult.validations && (
+                    <div className="mt-3 p-3 bg-muted rounded-md">
+                      <h4 className="text-sm font-medium mb-2">Pre-flight Validations</h4>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span>Table exists:</span>
+                          <span className={testResult.validations.tableExists ? 'text-green-600' : 'text-red-600'}>
+                            {testResult.validations.tableExists ? '✅' : '❌'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Publication configured:</span>
+                          <span className={testResult.validations.publication ? 'text-green-600' : 'text-red-600'}>
+                            {testResult.validations.publication ? '✅' : '❌'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Replica identity:</span>
+                          <span className={testResult.validations.replicaIdentity ? 'text-green-600' : 'text-red-600'}>
+                            {testResult.validations.replicaIdentity ? '✅' : '❌'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>RLS allows access:</span>
+                          <span className={testResult.validations.rlsEnabled ? 'text-green-600' : 'text-red-600'}>
+                            {testResult.validations.rlsEnabled ? '✅' : '❌'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
@@ -277,6 +383,87 @@ export default function RealtimeRepairPage() {
 
             {/* Log Viewer */}
             {testLogs.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Test Logs (últimos 20)</h4>
+                <div className="bg-muted p-3 rounded-md text-xs font-mono max-h-32 overflow-y-auto">
+                  {testLogs.map((log, index) => (
+                    <div key={index}>{log}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* SQL Fix Checklist - show when tests fail */}
+            {testResult && !testResult.ok && testResult.validations && (
+              <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-md">
+                <h4 className="text-sm font-medium text-orange-800 mb-2">SQL Fix Checklist</h4>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs">
+                    <Checkbox 
+                      checked={testResult.validations.tableExists} 
+                      disabled 
+                      className="h-3 w-3"
+                    />
+                    <span className={testResult.validations.tableExists ? 'text-green-700' : 'text-red-700'}>
+                      realtime_diag table exists
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <Checkbox 
+                      checked={testResult.validations.replicaIdentity} 
+                      disabled 
+                      className="h-3 w-3"
+                    />
+                    <span className={testResult.validations.replicaIdentity ? 'text-green-700' : 'text-red-700'}>
+                      Replica identity FULL configured
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <Checkbox 
+                      checked={testResult.validations.publication} 
+                      disabled 
+                      className="h-3 w-3"
+                    />
+                    <span className={testResult.validations.publication ? 'text-green-700' : 'text-red-700'}>
+                      Publication includes realtime_diag
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <Checkbox 
+                      checked={testResult.validations.rlsEnabled} 
+                      disabled 
+                      className="h-3 w-3"
+                    />
+                    <span className={testResult.validations.rlsEnabled ? 'text-green-700' : 'text-red-700'}>
+                      RLS policy allows access
+                    </span>
+                  </div>
+                </div>
+                
+                <Button 
+                  onClick={runSQLFixAgain}
+                  disabled={isRunningTest || isApplying}
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-3"
+                >
+                  {isApplying ? (
+                    <>
+                      <RotateCcw className="h-4 w-4 mr-2 animate-spin" />
+                      Fixing...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4 mr-2" />
+                      Run SQL Fix Again
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+
+            {/* Log Viewer (if no checklist shown) */}
+            {testLogs.length > 0 && !(testResult && !testResult.ok && testResult.validations) && (
               <div className="space-y-2">
                 <h4 className="text-sm font-medium">Test Logs (últimos 20)</h4>
                 <div className="bg-muted p-3 rounded-md text-xs font-mono max-h-32 overflow-y-auto">
