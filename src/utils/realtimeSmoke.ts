@@ -96,18 +96,14 @@ export async function runRealtimeSmokeTest(supabase: SupabaseClient): Promise<Re
     // Clean up handshake channel
     supabase.removeChannel(testChannel);
     
-    // Step 2: Subscribe - test broadcast channel subscription (with fallback)
-    let subscribeSuccess = false;
-    let subscribeMode: 'with_ack' | 'without_ack' = 'with_ack';
-    
-    // First try with ack enabled
-    testChannel = supabase.channel('diag_test', { 
+    // Step 2: Subscribe - test broadcast channel subscription
+    testChannel = supabase.channel('diagnostic', { 
       config: { 
-        broadcast: { ack: true, self: true } 
+        broadcast: { self: true } 
       } 
     });
 
-    const subscribeWithAckPromise = new Promise<boolean>((resolve) => {
+    const subscribePromise = new Promise<boolean>((resolve) => {
       const timeout = setTimeout(() => resolve(false), 5000);
       
       testChannel.subscribe((status: string) => {
@@ -116,82 +112,92 @@ export async function runRealtimeSmokeTest(supabase: SupabaseClient): Promise<Re
       });
     });
 
-    subscribeSuccess = await subscribeWithAckPromise;
+    const subscribeSuccess = await subscribePromise;
     
-    if (!subscribeSuccess) {
-      // Fallback: try without ack
-      supabase.removeChannel(testChannel);
-      subscribeMode = 'without_ack';
-      
-      testChannel = supabase.channel('diag_test_fallback', { 
-        config: { 
-          broadcast: { ack: false, self: true } 
-        } 
-      });
-
-      const subscribeWithoutAckPromise = new Promise<boolean>((resolve) => {
-        const timeout = setTimeout(() => resolve(false), 5000);
-        
-        testChannel.subscribe((status: string) => {
-          clearTimeout(timeout);
-          resolve(status === 'SUBSCRIBED');
-        });
-      });
-
-      subscribeSuccess = await subscribeWithoutAckPromise;
-    }
-
     if (subscribeSuccess) {
       result.subscribe = 'PASS';
-      result.subscribeMode = subscribeMode;
     } else {
-      result.error = 'Channel subscription failed - timeout after 5s (both with and without ack)';
+      result.error = 'Channel subscription failed - timeout after 5s';
       return result;
     }
 
-    // Step 3: Round-trip - test broadcast send/receive
+    // Step 3: Round-trip - test broadcast send/receive with retry logic
     const testId = `smoke_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     console.log(`[ROUNDTRIP] Starting round-trip test with testId: ${testId}`);
     
-    const roundtripPromise = new Promise<boolean>((resolve) => {
-      const timeout = setTimeout(() => {
-        console.log('[ROUNDTRIP] No echo received after 10s');
-        resolve(false);
-      }, 10000);
-      
-      testChannel.on('broadcast', { event: 'ping' }, (payload: any) => {
-        console.log(`[ROUNDTRIP] Broadcast echo received: testId=${payload.testId}, who=${payload.who}`);
-        if (payload.testId === testId && payload.who === 'health') {
-          clearTimeout(timeout);
-          resolve(true);
-        }
-      });
+    let roundtripSuccess = false;
+    let attemptMode = 'with_ack';
+    
+    // Set up broadcast listener immediately
+    testChannel.on('broadcast', { event: 'ping' }, (payload: any) => {
+      console.log(`[ROUNDTRIP] Broadcast echo received: testId=${payload.testId}, who=${payload.who}`);
+      if (payload.testId === testId && payload.who === 'health') {
+        roundtripSuccess = true;
+      }
+    });
 
-      // Send the broadcast event after setting up the listener
-      setTimeout(() => {
-        console.log('[ROUNDTRIP] Broadcast sent → waiting for echo');
-        const sendResult = testChannel.send({
-          type: 'broadcast',
-          event: 'ping',
-          payload: { testId, who: 'health', timestamp: Date.now() }
-        });
-        
-        console.log(`[ROUNDTRIP] Send result: ${sendResult}`);
-        if (sendResult !== 'ok') {
-          console.log(`[ROUNDTRIP] Send failed with result: ${sendResult}`);
-          clearTimeout(timeout);
-          resolve(false);
+    // First attempt with ack: true
+    console.log('[ROUNDTRIP] Attempting with ack: true');
+    let sendResult = testChannel.send({
+      type: 'broadcast',
+      event: 'ping',
+      payload: { testId, who: 'health', timestamp: Date.now() }
+    }, { ack: true });
+    
+    console.log(`[ROUNDTRIP] Send result (with_ack): ${sendResult}`);
+    
+    // Wait 5s for echo or retry with ack: false
+    await new Promise<void>((resolve) => {
+      const firstTimeout = setTimeout(async () => {
+        if (!roundtripSuccess && sendResult === 'ok') {
+          console.log('[ROUNDTRIP] No echo received after 5s with ack, retrying without ack');
+          attemptMode = 'without_ack';
+          
+          // Retry without ack
+          sendResult = testChannel.send({
+            type: 'broadcast', 
+            event: 'ping',
+            payload: { testId, who: 'health', timestamp: Date.now(), retry: true }
+          }, { ack: false });
+          
+          console.log(`[ROUNDTRIP] Send result (without_ack): ${sendResult}`);
+          
+          // Wait additional 5s for retry
+          setTimeout(() => resolve(), 5000);
+        } else if (sendResult !== 'ok') {
+          console.log(`[ROUNDTRIP] Send failed immediately, retrying without ack`);
+          attemptMode = 'without_ack';
+          
+          sendResult = testChannel.send({
+            type: 'broadcast',
+            event: 'ping', 
+            payload: { testId, who: 'health', timestamp: Date.now(), retry: true }
+          }, { ack: false });
+          
+          console.log(`[ROUNDTRIP] Send result (without_ack): ${sendResult}`);
+          setTimeout(() => resolve(), 5000);
+        } else {
+          resolve();
+        }
+      }, 5000);
+      
+      // If we get echo quickly, resolve early
+      const checkSuccess = setInterval(() => {
+        if (roundtripSuccess) {
+          clearTimeout(firstTimeout);
+          clearInterval(checkSuccess);
+          resolve();
         }
       }, 100);
     });
 
-    const roundtripSuccess = await roundtripPromise;
     if (roundtripSuccess) {
       result.roundtrip = 'PASS';
-      console.log('[ROUNDTRIP] Test passed');
+      result.subscribeMode = attemptMode as 'with_ack' | 'without_ack';
+      console.log(`[ROUNDTRIP] Test passed with mode: ${attemptMode}`);
     } else {
-      result.error = 'Broadcast round-trip failed - event not received within 10s or send failed';
-      console.log('[ROUNDTRIP] Test failed');
+      result.error = `Broadcast round-trip failed - no echo received (tried ${attemptMode}, sendResult: ${sendResult})`;
+      console.log(`[ROUNDTRIP] Test failed after trying ${attemptMode}`);
     }
 
     // Overall success: all tests pass (publication check is a warning, not a failure)
