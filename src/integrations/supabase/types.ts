@@ -173,6 +173,7 @@ export type Database = {
           strictness: string | null
           tone: string | null
           traits: Json | null
+          updated_at: string | null
           verbosity: Json | null
         }
         Insert: {
@@ -195,6 +196,7 @@ export type Database = {
           strictness?: string | null
           tone?: string | null
           traits?: Json | null
+          updated_at?: string | null
           verbosity?: Json | null
         }
         Update: {
@@ -217,6 +219,7 @@ export type Database = {
           strictness?: string | null
           tone?: string | null
           traits?: Json | null
+          updated_at?: string | null
           verbosity?: Json | null
         }
         Relationships: []
